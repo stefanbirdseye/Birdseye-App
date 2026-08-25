@@ -10,26 +10,22 @@ struct RootView: View {
     @State private var flow: AppFlow = .splash
 
     var body: some View {
-        Group {
+        ZStack {
             switch flow {
             case .splash:
-                SplashView()
+                SplashView {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        flow = .login
+                    }
+                }
             case .login:
                 LoginView(flow: $flow)
             case .main:
                 MainTabView(flow: $flow)
             }
         }
-        .task {
-            guard flow == .splash else {
-                return
-            }
-
-            try? await Task.sleep(for: .seconds(1.2))
-
-            if !Task.isCancelled, flow == .splash {
-                flow = .login
-            }
-        }
+        .id(flow)
+        .transition(.opacity)
+        .animation(.easeInOut(duration: 0.2), value: flow)
     }
 }
