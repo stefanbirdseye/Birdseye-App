@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 432 176" fill="none" stroke="#000" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Car -->
+  <g transform="translate(8 8)"><path d="M5 43h7l8-17c2-4 5-6 10-6h29c5 0 8 2 11 6l10 13h13c5 0 9 4 9 9v2H5z"/><path d="M22 39h52"/><circle cx="25" cy="49" r="6" fill="#fff"/><circle cx="77" cy="49" r="6" fill="#fff"/></g>
+  <!-- Bobtail -->
+  <g transform="translate(152 8)"><path d="M5 48V29c0-5 4-9 9-9h24c5 0 9 4 9 9v19"/><path d="M47 34h20l8 8h25c4 0 7 3 7 7H5"/><path d="M16 20v14h31"/><path d="M62 42v6M74 42v6"/><circle cx="24" cy="49" r="6" fill="#fff"/><circle cx="83" cy="49" r="6" fill="#fff"/></g>
+  <!-- Straight truck -->
+  <g transform="translate(296 8)"><rect x="5" y="16" width="62" height="32" rx="4"/><path d="M67 27h17l12 14v7H67z"/><path d="M77 27v14h19"/><circle cx="24" cy="49" r="6" fill="#fff"/><circle cx="82" cy="49" r="6" fill="#fff"/></g>
+  <!-- Trailer -->
+  <g transform="translate(8 96)"><path d="M5 18h82c5 0 9 4 9 9v19H5z"/><path d="M20 45v10M31 45v10M17 55h17"/><circle cx="70" cy="49" r="6" fill="#fff"/><circle cx="87" cy="49" r="6" fill="#fff"/></g>
+  <!-- Container -->
+  <g transform="translate(152 96)"><rect x="5" y="17" width="98" height="32" rx="4"/><path d="M23 22v22M40 22v22M57 22v22M74 22v22M91 22v22" stroke-width="3.5"/></g>
+  <!-- Forklift -->
+  <g transform="translate(296 96)"><path d="M5 48V31c0-6 5-11 11-11h25v28"/><path d="M16 20l12 17h13"/><path d="M41 48h17l6-12h16"/><path d="M80 14v35M88 14v35M88 49h16M88 56h20"/><circle cx="20" cy="49" r="6" fill="#fff"/><circle cx="59" cy="49" r="6" fill="#fff"/></g>
+</svg>

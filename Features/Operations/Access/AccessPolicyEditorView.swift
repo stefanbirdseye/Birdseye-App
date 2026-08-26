@@ -361,7 +361,8 @@ struct AccessPolicyEditorView: View {
                     Image(systemName: "clock.fill")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .frame(width: 20)
+                        .frame(width: 20, height: 20)
+                        .padding(.top, 2)
 
                     VStack(
                         alignment: .leading,
@@ -371,11 +372,9 @@ struct AccessPolicyEditorView: View {
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
 
-                        Text(
-                            "Enable access only during selected periods."
-                        )
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        Text("Enable access only during selected periods.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }

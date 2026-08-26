@@ -4,6 +4,7 @@ import Charts
 struct HomeView: View {
 
     let onAIAction: (String) -> Void
+    let onOpenSettings: () -> Void
 
     private let locations = [
         LocationSummary(
@@ -38,10 +39,12 @@ struct HomeView: View {
         )
     ]
 
+    @AppStorage("defaultLocation") private var defaultLocation = "Northstar (Oshawa)"
+    @AppStorage("hasDismissedDefaultLocationTip") private var hasDismissedDefaultLocationTip = false
     @State private var selectedLocationIndex = 0
-    @State private var showingNewSheet = false
-    @State private var newSheetTitle = "Create new"
-    @State private var showingAddPersonAuthorization = false
+    @State private var activeCreateSheet: HomeCreateSheet?
+    @State private var hasLoadedDefaultLocation = false
+    @State private var isLocationTipPresented = false
 
     private var selectedLocation: LocationSummary {
         locations[selectedLocationIndex]
@@ -66,18 +69,25 @@ struct HomeView: View {
                             onPrevious: selectPreviousLocation,
                             onNext: selectNextLocation
                         )
+
+                        if isLocationTipPresented {
+                            LocationDefaultTip(
+                                locationName: selectedLocation.name,
+                                onDismiss: {
+                                    hasDismissedDefaultLocationTip = true
+                                    isLocationTipPresented = false
+                                },
+                                onOpenSettings: {
+                                    isLocationTipPresented = false
+                                    onOpenSettings()
+                                }
+                            )
+                        }
                     }
 
                     LocationDashboardContent(
                         location: selectedLocation,
-                        onAdd: { title in
-                            if title == "Add person authorization" {
-                                showingAddPersonAuthorization = true
-                            } else {
-                                newSheetTitle = title
-                                showingNewSheet = true
-                            }
-                        },
+                        onAdd: { activeCreateSheet = $0 },
                         onAIAction: onAIAction
                     )
                     .id(selectedLocation.id)
@@ -90,16 +100,43 @@ struct HomeView: View {
             .birdseyeRefreshable()
             .background(Color(.systemGroupedBackground))
             .birdseyeMainTabPage()
-            .sheet(isPresented: $showingNewSheet) {
-                NewSheet(title: newSheetTitle)
-            }
-            .sheet(isPresented: $showingAddPersonAuthorization) {
-                AddPersonAuthorizationView()
+            .sheet(item: $activeCreateSheet) { sheet in
+                switch sheet {
+                case .person:
+                    AddPersonAuthorizationView()
+                case .organization:
+                    OrganizationEditorView()
+                case .equipment:
+                    EquipmentEditorView()
+                case .appointment:
+                    AppointmentEditorView()
+                }
             }
             .animation(
                 .easeInOut(duration: 0.25),
                 value: selectedLocation.id
             )
+            .onAppear {
+                guard !hasLoadedDefaultLocation else {
+                    return
+                }
+
+                hasLoadedDefaultLocation = true
+                selectedLocationIndex = locations.firstIndex {
+                    $0.name == defaultLocation
+                } ?? 0
+            }
+            .onChange(of: selectedLocationIndex) { _, newIndex in
+                guard
+                    hasLoadedDefaultLocation,
+                    locations[newIndex].name != defaultLocation,
+                    !hasDismissedDefaultLocationTip
+                else {
+                    return
+                }
+
+                isLocationTipPresented = true
+            }
         }
     }
 
@@ -111,6 +148,7 @@ struct HomeView: View {
         withAnimation {
             selectedLocationIndex -= 1
         }
+
     }
 
     private func selectNextLocation() {
@@ -119,11 +157,53 @@ struct HomeView: View {
         }
 
         withAnimation {
+
             selectedLocationIndex += 1
         }
     }
 }
 
+private struct LocationDefaultTip: View {
+
+    let locationName: String
+    let onDismiss: () -> Void
+    let onOpenSettings: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            Text("Set \(locationName) as default in")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button("Settings", action: onOpenSettings)
+                .font(.footnote.weight(.semibold))
+                .buttonStyle(.borderless)
+                .foregroundStyle(.blue)
+                .fixedSize()
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss default location tip")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private enum HomeCreateSheet: Identifiable {
+    case person
+    case organization
+    case equipment
+    case appointment
+
+    var id: Self { self }
+}
 
 // MARK: - Location Summary
 
@@ -219,6 +299,7 @@ private struct LocationSwitcher: View {
                 )
                 .frame(height: controlHeight)
                 .contentShape(Rectangle())
+
             }
             .tint(.primary)
             .buttonStyle(.glass)
@@ -259,8 +340,9 @@ private struct LocationSwitcher: View {
             width: arrowButtonSize,
             height: arrowButtonSize
         )
-        .foregroundStyle(.primary)
+        .foregroundStyle(isEnabled ? .primary : .tertiary)
         .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.45)
         .accessibilityLabel(accessibilityLabel)
     }
 }
@@ -271,16 +353,13 @@ private struct LocationSwitcher: View {
 private struct LocationDashboardContent: View {
 
     let location: LocationSummary
-    let onAdd: (String) -> Void
+    let onAdd: (HomeCreateSheet) -> Void
     let onAIAction: (String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
 
-            MetricGrid(
-                location: location,
-                onAdd: onAdd
-            )
+            MetricGrid(location: location, onAdd: onAdd)
 
             AccessRecordsSummaryCard()
 
@@ -321,7 +400,7 @@ private struct LocationDashboardContent: View {
 private struct MetricGrid: View {
 
     let location: LocationSummary
-    let onAdd: (String) -> Void
+    let onAdd: (HomeCreateSheet) -> Void
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -341,9 +420,7 @@ private struct MetricGrid: View {
                 systemImage: "person.fill",
                 tint: .blue,
                 destination: AuthorizedPeopleOperationsView(),
-                onAdd: {
-                    onAdd("Add person authorization")
-                }
+                onAdd: { onAdd(.person) }
             )
 
             MetricCard(
@@ -353,9 +430,7 @@ private struct MetricGrid: View {
                 systemImage: "building.2.fill",
                 tint: .blue,
                 destination: AuthorizedOrganizationsOperationsView(),
-                onAdd: {
-                    onAdd("Add organization authorization")
-                }
+                onAdd: { onAdd(.organization) }
             )
 
             MetricCard(
@@ -365,9 +440,7 @@ private struct MetricGrid: View {
                 systemImage: "truck.box.fill",
                 tint: .blue,
                 destination: EquipmentOperationsView(),
-                onAdd: {
-                    onAdd("Add equipment authorization")
-                }
+                onAdd: { onAdd(.equipment) }
             )
 
             MetricCard(
@@ -377,9 +450,8 @@ private struct MetricGrid: View {
                 systemImage: "calendar",
                 tint: .blue,
                 destination: AppointmentsOperationsView(),
-                onAdd: {
-                    onAdd("Add appointment")
-                }
+
+                onAdd: { onAdd(.appointment) }
             )
         }
     }
@@ -448,7 +520,7 @@ private struct MetricCard<Destination: View>: View {
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
                             .background(
-                                tint.opacity(0.12),
+                                tint.opacity(0.08),
                                 in: Capsule()
                             )
                     }
@@ -479,17 +551,18 @@ private struct MetricCard<Destination: View>: View {
 
             Button(action: onAdd) {
                 Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.primary.opacity(0.9))
-                    .frame(width: 44, height: 44)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 30, height: 30)
                     .background(
-                        Color.primary.opacity(0.06),
+                        .primary.opacity(0.12),
                         in: Circle()
                     )
             }
             .buttonStyle(.plain)
-            .padding(8)
-            .accessibilityLabel("Add")
+            .padding(12)
+            .contentShape(Circle())
+            .accessibilityLabel("Add \(title)")
         }
     }
 }
@@ -527,6 +600,7 @@ private struct AccessRecordsSummaryCard: View {
                     Text("Inbound and outbound activity over the last 7 days.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -537,7 +611,8 @@ private struct AccessRecordsSummaryCard: View {
                 } label: {
                     Image(systemName: "chevron.right")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.foreground)
+
                 }
                 .accessibilityLabel("View access point records")
             }
@@ -620,7 +695,7 @@ private struct InventorySummaryCard: View {
                 } label: {
                     Image(systemName: "chevron.right")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.foreground)
                 }
                 .accessibilityLabel("View inventory")
             }
@@ -676,6 +751,7 @@ private struct DashboardSection<Content: View>: View {
     let title: LocalizedStringKey
 
     @ViewBuilder
+
     let content: () -> Content
 
     var body: some View {
@@ -761,5 +837,8 @@ private struct AIActionButton: View {
 
 
 #Preview {
-    HomeView(onAIAction: { _ in })
+    HomeView(
+        onAIAction: { _ in },
+        onOpenSettings: {}
+    )
 }

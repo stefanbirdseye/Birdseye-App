@@ -186,6 +186,34 @@ struct WorkspaceAIComposer: View {
 
     }
 
+    private var submissionContext: String {
+
+        let locationScope = allLocationsSelected
+
+            ? "All locations"
+
+            : contextLocations
+
+                .sorted()
+
+                .joined(separator: ", ")
+
+        let selectedScope = locationScope.isEmpty
+
+            ? "No locations"
+
+            : locationScope
+
+        guard shouldShowPageContext, let pageContext else {
+
+            return "Locations: \(selectedScope)"
+
+        }
+
+        return "\(pageContext) • Locations: \(selectedScope)"
+
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -582,6 +610,66 @@ struct WorkspaceAIComposer: View {
 
         .padding(.vertical, 8)
 
+        // MARK: Composer surface
+
+        // Keep every outline inside the same composited surface as
+        // Liquid Glass, so it moves and deforms together with the glass.
+        .overlay {
+
+            ZStack {
+
+                RoundedRectangle(
+
+                    cornerRadius: 28,
+
+                    style: .continuous
+
+                )
+
+                .stroke(
+
+                    Color.accentColor.opacity(isFocused ? 0.38 : 0.28),
+
+                    lineWidth: isFocused ? 1.2 : 0.9
+
+                )
+
+                if isDropTargeted {
+
+                    RoundedRectangle(
+
+                        cornerRadius: 28,
+
+                        style: .continuous
+
+                    )
+
+                    .stroke(
+
+                        Color.accentColor,
+
+                        style: StrokeStyle(
+
+                            lineWidth: 2,
+
+                            dash: [6, 4]
+
+                        )
+
+                    )
+
+                    .padding(1)
+
+                }
+
+            }
+
+            .allowsHitTesting(false)
+
+        }
+
+        .compositingGroup()
+
         // MARK: Liquid Glass
 
         .glassEffect(
@@ -595,66 +683,6 @@ struct WorkspaceAIComposer: View {
             )
 
         )
-
-        // Subtle bluish border
-
-        .overlay {
-
-            RoundedRectangle(
-
-                cornerRadius: 28,
-
-                style: .continuous
-
-            )
-
-            .stroke(
-
-                Color.accentColor.opacity(isFocused ? 0.38 : 0.28),
-
-                lineWidth: isFocused ? 1.2 : 0.9
-
-            )
-
-            .allowsHitTesting(false)
-
-        }
-
-        // MARK: Drop highlight
-
-        .overlay {
-
-            if isDropTargeted {
-
-                RoundedRectangle(
-
-                    cornerRadius: 28,
-
-                    style: .continuous
-
-                )
-
-                .stroke(
-
-                    Color.accentColor,
-
-                    style: StrokeStyle(
-
-                        lineWidth: 2,
-
-                        dash: [6, 4]
-
-                    )
-
-                )
-
-                .padding(1)
-
-                .allowsHitTesting(false)
-
-            }
-
-        }
 
         .animation(
 
@@ -853,8 +881,6 @@ struct WorkspaceAIComposer: View {
          something inside it, such as the TextField, is focused.
 
         */
-
-
 
         // MARK: Recording timer
 
@@ -1459,8 +1485,6 @@ struct WorkspaceAIComposer: View {
         .clipped()
 
     }
-
-
 
     private var formattedRecordingTime: String {
 
@@ -2468,7 +2492,7 @@ struct WorkspaceAIComposer: View {
 
             attachedFiles,
 
-            shouldShowPageContext ? pageContext : nil
+            submissionContext
 
         )
 
@@ -2606,7 +2630,7 @@ struct WorkspaceAIComposer: View {
 
             attachedFiles,
 
-            shouldShowPageContext ? pageContext : nil
+            submissionContext
 
         )
 
@@ -3005,6 +3029,7 @@ struct WorkspaceAIComposer: View {
 private struct AIStopLoadingIndicator: View {
 
     @Environment(\.accessibilityReduceMotion)
+
     private var reduceMotion
 
     @State private var rotation: Double = 0
@@ -3014,42 +3039,71 @@ private struct AIStopLoadingIndicator: View {
         ZStack {
 
             Circle()
+
                 .fill(.thinMaterial)
 
             Circle()
+
                 .stroke(
+
                     Color.primary.opacity(0.10),
+
                     lineWidth: 3
+
                 )
+
                 .padding(2)
 
             Circle()
+
                 .trim(from: 0.08, to: 0.72)
+
                 .stroke(
+
                     Color.accentColor,
+
                     style: StrokeStyle(
+
                         lineWidth: 3,
+
                         lineCap: .round
+
                     )
+
                 )
+
                 .rotationEffect(.degrees(-90))
+
                 .rotationEffect(.degrees(rotation))
+
                 .padding(2)
 
             RoundedRectangle(
+
                 cornerRadius: 2,
+
                 style: .continuous
+
             )
+
             .fill(Color.primary)
+
             .frame(width: 10, height: 10)
 
         }
+
         .frame(width: 34, height: 34)
+
         .onAppear {
+
             startSpinning()
+
         }
+
         .onChange(of: reduceMotion) { _, _ in
+
             startSpinning()
+
         }
 
     }
@@ -3057,17 +3111,25 @@ private struct AIStopLoadingIndicator: View {
     private func startSpinning() {
 
         if reduceMotion {
+
             rotation = 0
+
             return
+
         }
 
         rotation = 0
 
         withAnimation(
+
             .linear(duration: 0.9)
+
                 .repeatForever(autoreverses: false)
+
         ) {
+
             rotation = 360
+
         }
 
     }
@@ -3211,10 +3273,6 @@ private struct ShimmeringPlaceholder: View {
 }
 
 // MARK: - Attached file
-
-
-
-
 
 // MARK: - Camera picker
 

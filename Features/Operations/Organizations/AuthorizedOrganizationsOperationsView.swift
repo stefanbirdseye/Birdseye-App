@@ -1,24 +1,33 @@
 import SwiftUI
 
-struct EquipmentOperationsView: View {
+struct AuthorizedOrganizationsOperationsView: View {
 
-    private let equipment: [EquipmentRecord] = (1...100).map { index in
-        let categories = [
-            "Car",
-            "Bobtail",
-            "Straight truck",
-            "Trailer",
-            "Container",
-            "Forklift",
+    private let organizations: [OrganizationRecord] = (1...100).map { index in
+        let names = [
+            "Northstar Logistics",
+            "SafeGate Services",
+            "CargoTrucks",
+            "Bison Transport",
         ]
 
-        let equipmentTypes = [
-            "Passenger car",
-            "Semi tractor",
-            "Box truck",
-            "Trailer",
-            "Container",
-            "Forklift",
+        let relationTypes = [
+            "Tenant",
+            "Vendor",
+            "Third-party carrier",
+        ]
+
+        let industries = [
+            "Transportation",
+            "Security",
+            "Trucking",
+            "Automotive",
+        ]
+
+        let addresses = [
+            "100 Harbour St, Toronto, ON",
+            "2200 Airport Rd, Oshawa, ON",
+            "6358 Viscount Rd, Mississauga, ON",
+            "4100 Logistics Way, Dallas, TX",
         ]
 
         let locationSets = [
@@ -56,25 +65,15 @@ struct EquipmentOperationsView: View {
             || accessType == "Specialized Access"
             || index.isMultiple(of: 23)
 
-        return EquipmentRecord(
+        return OrganizationRecord(
             id: index,
-            equipmentNumber: index.isMultiple(of: 5)
-                ? "TR-\(500 + index)"
-                : "Unit \(index)",
-            category: categories[index % categories.count],
-            equipmentType: equipmentTypes[index % equipmentTypes.count],
-            referenceID: "Birdseye_\(30000 + index)",
-            licensePlate: index.isMultiple(of: 3)
-                ? "\(32000 + index)"
-                : "",
-            vinNumber: index.isMultiple(of: 4)
-                ? "1GYS9BKL4TR\(420000 + index)"
-                : "",
-            fullName: index.isMultiple(of: 6)
-                ? "David Okafor"
-                : "",
-            organizationName: index.isMultiple(of: 4)
-                ? "Northstar Logistics"
+            name: names[index % names.count] + " \(index)",
+            relationType: relationTypes[index % relationTypes.count],
+            industry: industries[index % industries.count],
+            address: addresses[index % addresses.count],
+            phoneNumber: index.isMultiple(of: 4) ? "1234567890" : "",
+            emailAddress: index.isMultiple(of: 3)
+                ? "ops\(index)@northstarlogistics.com"
                 : "",
             locations: locationSets[index % locationSets.count],
             accessType: accessType,
@@ -97,11 +96,11 @@ struct EquipmentOperationsView: View {
     @State private var selectedLocationIndex = 1
     @State private var searchText = ""
     @State private var isSearchPresented = false
-    @State private var equipmentFilter: EquipmentFilter = .all
-    @State private var sortOrder: EquipmentSortOrder = .recentlyAdded
+    @State private var organizationFilter: OrganizationFilter = .all
+    @State private var sortOrder: OrganizationSortOrder = .recentlyAdded
     @State private var page = 0
-    @State private var showingEditor = false
-    @State private var selectedEquipment: EquipmentRecord?
+    @State private var showingAdd = false
+    @State private var selectedOrganization: OrganizationRecord?
 
     private let pageSize = 20
 
@@ -111,63 +110,67 @@ struct EquipmentOperationsView: View {
         )
     }
 
-    private var filteredEquipment: [EquipmentRecord] {
-        let matchingEquipment = equipment.filter { item in
+    private var filteredOrganizations: [OrganizationRecord] {
+        let matchingOrganizations = organizations.filter { organization in
             let matchesSearch =
                 cleanSearch.isEmpty
-                || item.equipmentNumber.localizedCaseInsensitiveContains(cleanSearch)
-                || item.category.localizedCaseInsensitiveContains(cleanSearch)
-                || item.equipmentType.localizedCaseInsensitiveContains(cleanSearch)
-                || item.referenceID.localizedCaseInsensitiveContains(cleanSearch)
-                || item.licensePlate.localizedCaseInsensitiveContains(cleanSearch)
-                || item.vinNumber.localizedCaseInsensitiveContains(cleanSearch)
-                || item.fullName.localizedCaseInsensitiveContains(cleanSearch)
-                || item.organizationName.localizedCaseInsensitiveContains(cleanSearch)
-                || item.locations
+                || organization.name.localizedCaseInsensitiveContains(cleanSearch)
+                || organization.relationType.localizedCaseInsensitiveContains(cleanSearch)
+                || organization.industry.localizedCaseInsensitiveContains(cleanSearch)
+                || organization.address.localizedCaseInsensitiveContains(cleanSearch)
+                || organization.emailAddress.localizedCaseInsensitiveContains(cleanSearch)
+                || organization.phoneNumber.localizedCaseInsensitiveContains(cleanSearch)
+                || organization.locations
                     .joined(separator: " ")
                     .localizedCaseInsensitiveContains(cleanSearch)
-                || item.accessType
+                || organization.accessType
                     .localizedCaseInsensitiveContains(cleanSearch)
 
             let selectedLocation = locations[selectedLocationIndex]
 
             let matchesLocation =
                 selectedLocation == "All locations"
-                || item.locations.contains(selectedLocation)
-                || item.locations.contains("All locations")
+                || organization.locations.contains(selectedLocation)
+                || organization.locations.contains("All locations")
 
             let matchesFilter: Bool
 
-            switch equipmentFilter {
+            switch organizationFilter {
             case .all:
                 matchesFilter = true
 
             case .activeOnly:
-                matchesFilter = item.isActive
+                matchesFilter = organization.isActive
 
-            case .trucksOnly:
-                matchesFilter = ["Bobtail", "Straight truck"].contains(item.category)
-
-            case .trailersOnly:
-                matchesFilter = item.category == "Trailer"
-
-            case .forkliftsOnly:
-                matchesFilter = item.category == "Forklift"
-
-            case .containersOnly:
-                matchesFilter = item.category == "Container"
+            case .inactiveOnly:
+                matchesFilter = !organization.isActive
 
             case .bannedOnly:
-                matchesFilter = item.accessType == "Banned Access"
+                matchesFilter = organization.accessType == "Banned Access"
+
+            case .defaultOnly:
+                matchesFilter = organization.accessType == "Default Access"
 
             case .priorityOnly:
-                matchesFilter = item.accessType == "Priority Access"
+                matchesFilter = organization.accessType == "Priority Access"
 
             case .specializedOnly:
-                matchesFilter = item.accessType == "Specialized Access"
+                matchesFilter = organization.accessType == "Specialized Access"
+
+            case .tenantOnly:
+                matchesFilter = organization.relationType == "Tenant"
+
+            case .vendorOnly:
+                matchesFilter = organization.relationType == "Vendor"
+
+            case .carrierOnly:
+                matchesFilter = organization.relationType == "Third-party carrier"
 
             case .newThisWeek:
-                matchesFilter = item.isNewThisWeek
+                matchesFilter = organization.isNewThisWeek
+
+            case .hasNotes:
+                matchesFilter = organization.hasNote
             }
 
             return matchesSearch
@@ -177,45 +180,41 @@ struct EquipmentOperationsView: View {
 
         switch sortOrder {
         case .recentlyAdded:
-            return matchingEquipment.sorted {
+            return matchingOrganizations.sorted {
                 $0.addedOrder > $1.addedOrder
             }
 
         case .oldestAdded:
-            return matchingEquipment.sorted {
+            return matchingOrganizations.sorted {
                 $0.addedOrder < $1.addedOrder
             }
 
-        case .numberAscending:
-            return matchingEquipment.sorted {
-                $0.equipmentNumber.localizedStandardCompare(
-                    $1.equipmentNumber
+        case .nameAscending:
+            return matchingOrganizations.sorted {
+                $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+
+        case .nameDescending:
+            return matchingOrganizations.sorted {
+                $0.name.localizedStandardCompare($1.name) == .orderedDescending
+            }
+
+        case .relationType:
+            return matchingOrganizations.sorted {
+                $0.relationType.localizedStandardCompare(
+                    $1.relationType
                 ) == .orderedAscending
             }
 
-        case .numberDescending:
-            return matchingEquipment.sorted {
-                $0.equipmentNumber.localizedStandardCompare(
-                    $1.equipmentNumber
-                ) == .orderedDescending
-            }
-
-        case .category:
-            return matchingEquipment.sorted {
-                $0.category.localizedStandardCompare(
-                    $1.category
-                ) == .orderedAscending
-            }
-
-        case .type:
-            return matchingEquipment.sorted {
-                $0.equipmentType.localizedStandardCompare(
-                    $1.equipmentType
+        case .industry:
+            return matchingOrganizations.sorted {
+                $0.industry.localizedStandardCompare(
+                    $1.industry
                 ) == .orderedAscending
             }
 
         case .location:
-            return matchingEquipment.sorted {
+            return matchingOrganizations.sorted {
                 $0.locations
                     .joined(separator: " ")
                     .localizedStandardCompare(
@@ -224,23 +223,34 @@ struct EquipmentOperationsView: View {
             }
 
         case .accessType:
-            return matchingEquipment.sorted {
+            return matchingOrganizations.sorted {
                 $0.accessType.localizedStandardCompare(
                     $1.accessType
                 ) == .orderedAscending
             }
+
+        case .status:
+            return matchingOrganizations.sorted {
+                if $0.isActive == $1.isActive {
+                    return $0.name.localizedStandardCompare(
+                        $1.name
+                    ) == .orderedAscending
+                }
+
+                return $0.isActive && !$1.isActive
+            }
         }
     }
 
-    private var pageEquipment: [EquipmentRecord] {
+    private var pageOrganizations: [OrganizationRecord] {
         let start = page * pageSize
 
-        guard start < filteredEquipment.count else {
+        guard start < filteredOrganizations.count else {
             return []
         }
 
         return Array(
-            filteredEquipment
+            filteredOrganizations
                 .dropFirst(start)
                 .prefix(pageSize)
         )
@@ -248,22 +258,22 @@ struct EquipmentOperationsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            EquipmentResultsContent(
-                equipment: pageEquipment,
-                resultCount: filteredEquipment.count,
+            AuthorizedOrganizationsResultsContent(
+                organizations: pageOrganizations,
+                resultCount: filteredOrganizations.count,
                 locations: locations,
                 selectedLocationIndex: $selectedLocationIndex,
                 page: page,
                 pageSize: pageSize,
-                onSelect: { item in
-                    selectedEquipment = item
+                onSelect: { organization in
+                    selectedOrganization = organization
                 },
                 onPrevious: {
                     page = max(page - 1, 0)
                 },
                 onNext: {
                     let maxPage = max(
-                        (filteredEquipment.count - 1) / pageSize,
+                        (filteredOrganizations.count - 1) / pageSize,
                         0
                     )
 
@@ -271,9 +281,9 @@ struct EquipmentOperationsView: View {
                 }
             )
         }
-        .navigationTitle("Equipment")
+        .navigationTitle("Organizations")
         .navigationBarTitleDisplayMode(.inline)
-        .reportingPageContext("Equipment")
+        .reportingPageContext("Organizations")
         .toolbar {
             ToolbarItemGroup(
                 placement: .topBarTrailing
@@ -289,7 +299,7 @@ struct EquipmentOperationsView: View {
 
                 Menu {
                     Section("Sort") {
-                        ForEach(EquipmentSortOrder.allCases) { order in
+                        ForEach(OrganizationSortOrder.allCases) { order in
                             Button {
                                 sortOrder = order
                                 page = 0
@@ -310,12 +320,12 @@ struct EquipmentOperationsView: View {
                     }
 
                     Section("Filter") {
-                        ForEach(EquipmentFilter.allCases) { filter in
+                        ForEach(OrganizationFilter.allCases) { filter in
                             Button {
-                                equipmentFilter = filter
+                                organizationFilter = filter
                                 page = 0
                             } label: {
-                                if equipmentFilter == filter {
+                                if organizationFilter == filter {
                                     Label(
                                         filter.title,
                                         systemImage: "checkmark"
@@ -340,13 +350,13 @@ struct EquipmentOperationsView: View {
                             )
                         }
 
-                        if equipmentFilter != .all
+                        if organizationFilter != .all
                             || !searchText.isEmpty
                             || selectedLocationIndex != 1
                             || sortOrder != .recentlyAdded
                         {
                             Button {
-                                equipmentFilter = .all
+                                organizationFilter = .all
                                 searchText = ""
                                 selectedLocationIndex = 1
                                 sortOrder = .recentlyAdded
@@ -367,24 +377,24 @@ struct EquipmentOperationsView: View {
 
                 Button {
                     HapticFeedback.lightImpact()
-                    showingEditor = true
+                    showingAdd = true
                 } label: {
                     Image(systemName: "plus")
                         .font(.body.weight(.semibold))
                 }
                 .tint(.blue)
-                .accessibilityLabel("Add equipment")
+                .accessibilityLabel("Add organization")
             }
         }
-        .equipmentConditionalSearch(
+        .organizationConditionalSearch(
             isPresented: $isSearchPresented,
             text: $searchText,
-            prompt: "Search equipment"
+            prompt: "Search organizations"
         )
         .onChange(of: searchText) { _, _ in
             page = 0
         }
-        .onChange(of: equipmentFilter) { _, _ in
+        .onChange(of: organizationFilter) { _, _ in
             page = 0
         }
         .onChange(of: selectedLocationIndex) { _, _ in
@@ -393,12 +403,12 @@ struct EquipmentOperationsView: View {
         .onChange(of: sortOrder) { _, _ in
             page = 0
         }
-        .sheet(isPresented: $showingEditor) {
-            EquipmentEditorView()
+        .sheet(isPresented: $showingAdd) {
+            OrganizationEditorView()
         }
-        .sheet(item: $selectedEquipment) { equipment in
-            EquipmentEditorView(
-                equipment: equipment
+        .sheet(item: $selectedOrganization) { organization in
+            OrganizationEditorView(
+                organization: organization
             )
         }
     }
@@ -407,19 +417,20 @@ struct EquipmentOperationsView: View {
 
 // MARK: - Sorting
 
-private enum EquipmentSortOrder:
+private enum OrganizationSortOrder:
     String,
     CaseIterable,
     Identifiable
 {
     case recentlyAdded
     case oldestAdded
-    case numberAscending
-    case numberDescending
-    case category
-    case type
+    case nameAscending
+    case nameDescending
+    case relationType
+    case industry
     case location
     case accessType
+    case status
 
     var id: Self { self }
 
@@ -429,18 +440,20 @@ private enum EquipmentSortOrder:
             return "Recently added"
         case .oldestAdded:
             return "Oldest added"
-        case .numberAscending:
-            return "Equipment number A-Z"
-        case .numberDescending:
-            return "Equipment number Z-A"
-        case .category:
-            return "Category"
-        case .type:
-            return "Type"
+        case .nameAscending:
+            return "Name A-Z"
+        case .nameDescending:
+            return "Name Z-A"
+        case .relationType:
+            return "Relation type"
+        case .industry:
+            return "Industry"
         case .location:
             return "Location"
         case .accessType:
             return "Access type"
+        case .status:
+            return "Status"
         }
     }
 
@@ -450,18 +463,20 @@ private enum EquipmentSortOrder:
             return "clock.arrow.circlepath"
         case .oldestAdded:
             return "clock"
-        case .numberAscending:
+        case .nameAscending:
             return "textformat.abc"
-        case .numberDescending:
+        case .nameDescending:
             return "textformat.abc"
-        case .category:
-            return "square.grid.2x2"
-        case .type:
-            return "truck.box"
+        case .relationType:
+            return "arrow.left.arrow.right"
+        case .industry:
+            return "building.2"
         case .location:
             return "mappin.and.ellipse"
         case .accessType:
             return "key"
+        case .status:
+            return "checkmark.circle"
         }
     }
 }
@@ -469,88 +484,96 @@ private enum EquipmentSortOrder:
 
 // MARK: - Filtering
 
-private enum EquipmentFilter:
+private enum OrganizationFilter:
     String,
     CaseIterable,
     Identifiable
 {
     case all
     case activeOnly
-    case trucksOnly
-    case trailersOnly
-    case forkliftsOnly
-    case containersOnly
+    case inactiveOnly
     case bannedOnly
+    case defaultOnly
     case priorityOnly
     case specializedOnly
+    case tenantOnly
+    case vendorOnly
+    case carrierOnly
     case newThisWeek
+    case hasNotes
 
     var id: Self { self }
 
     var title: String {
         switch self {
         case .all:
-            return "All equipment"
+            return "All organizations"
         case .activeOnly:
             return "Active only"
-        case .trucksOnly:
-            return "Trucks only"
-        case .trailersOnly:
-            return "Trailers only"
-        case .forkliftsOnly:
-            return "Forklifts only"
-        case .containersOnly:
-            return "Containers only"
+        case .inactiveOnly:
+            return "Inactive only"
         case .bannedOnly:
             return "Banned only"
+        case .defaultOnly:
+            return "Default access only"
         case .priorityOnly:
             return "Priority access only"
         case .specializedOnly:
             return "Specialized access only"
+        case .tenantOnly:
+            return "Tenants only"
+        case .vendorOnly:
+            return "Vendors only"
+        case .carrierOnly:
+            return "Third-party carriers only"
         case .newThisWeek:
             return "New this week"
+        case .hasNotes:
+            return "Has notes"
         }
     }
 
     var systemImage: String {
         switch self {
         case .all:
-            return "truck.box"
+            return "building.2"
         case .activeOnly:
             return "checkmark.circle"
-        case .trucksOnly:
-            return "truck.box"
-        case .trailersOnly:
-            return "shippingbox"
-        case .forkliftsOnly:
-            return "shippingbox.and.arrow.backward"
-        case .containersOnly:
-            return "shippingbox.fill"
+        case .inactiveOnly:
+            return "pause.circle"
         case .bannedOnly:
             return "nosign"
+        case .defaultOnly:
+            return "infinity"
         case .priorityOnly:
             return "star"
         case .specializedOnly:
             return "slider.horizontal.3"
+        case .tenantOnly:
+            return "house"
+        case .vendorOnly:
+            return "shippingbox"
+        case .carrierOnly:
+            return "truck.box"
         case .newThisWeek:
             return "sparkles"
+        case .hasNotes:
+            return "note.text"
         }
     }
 }
 
 
-// MARK: - Equipment Record
+// MARK: - Organization Record
 
-struct EquipmentRecord: Identifiable {
+struct OrganizationRecord: Identifiable {
     let id: Int
-    let equipmentNumber: String
-    let category: String
-    let equipmentType: String
-    let referenceID: String
-    let licensePlate: String
-    let vinNumber: String
-    let fullName: String
-    let organizationName: String
+    let name: String
+    let relationType: String
+    let industry: String
+    let address: String
+    let phoneNumber: String
+    let emailAddress: String
     let locations: [String]
     let accessType: String
     let periodAccess: String
@@ -564,8 +587,8 @@ struct EquipmentRecord: Identifiable {
 
 // MARK: - Results
 
-private struct EquipmentResultsContent: View {
-    let equipment: [EquipmentRecord]
+private struct AuthorizedOrganizationsResultsContent: View {
+    let organizations: [OrganizationRecord]
     let resultCount: Int
     let locations: [String]
 
@@ -574,7 +597,7 @@ private struct EquipmentResultsContent: View {
     let page: Int
     let pageSize: Int
 
-    let onSelect: (EquipmentRecord) -> Void
+    let onSelect: (OrganizationRecord) -> Void
     let onPrevious: () -> Void
     let onNext: () -> Void
 
@@ -589,17 +612,17 @@ private struct EquipmentResultsContent: View {
 
                     Spacer()
 
-                    EquipmentLocationSwitcher(
+                    OrganizationLocationSwitcher(
                         locations: locations,
                         selectedIndex: $selectedLocationIndex
                     )
                 }
                 .padding(.horizontal, 16)
 
-                if equipment.isEmpty {
+                if organizations.isEmpty {
                     ContentUnavailableView(
-                        "No equipment found",
-                        systemImage: "truck.box",
+                        "No organizations found",
+                        systemImage: "building.2.crop.circle",
                         description: Text(
                             "Try changing your search or filters."
                         )
@@ -607,12 +630,12 @@ private struct EquipmentResultsContent: View {
                     .padding(.top, 54)
                     .padding(.horizontal, 24)
                 } else {
-                    EquipmentCard(
-                        equipment: equipment,
+                    AuthorizedOrganizationsCard(
+                        organizations: organizations,
                         onSelect: onSelect
                     )
 
-                    EquipmentPaginationFooter(
+                    OrganizationPaginationFooter(
                         page: page,
                         itemCount: resultCount,
                         pageSize: pageSize,
@@ -633,28 +656,28 @@ private struct EquipmentResultsContent: View {
 }
 
 
-// MARK: - Equipment Card
+// MARK: - Organizations Card
 
-private struct EquipmentCard: View {
-    let equipment: [EquipmentRecord]
-    let onSelect: (EquipmentRecord) -> Void
+private struct AuthorizedOrganizationsCard: View {
+    let organizations: [OrganizationRecord]
+    let onSelect: (OrganizationRecord) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             ForEach(
-                equipment.enumerated(),
+                organizations.enumerated(),
                 id: \.element.id
-            ) { index, item in
+            ) { index, organization in
                 Button {
-                    onSelect(item)
+                    onSelect(organization)
                 } label: {
-                    EquipmentRow(
-                        item: item
+                    AuthorizedOrganizationRow(
+                        organization: organization
                     )
                 }
                 .buttonStyle(.plain)
 
-                if index < equipment.count - 1 {
+                if index < organizations.count - 1 {
                     Divider()
                         .padding(.leading, 62)
                 }
@@ -682,7 +705,7 @@ private struct EquipmentCard: View {
 
 extension View {
     @ViewBuilder
-    fileprivate func equipmentConditionalSearch(
+    fileprivate func organizationConditionalSearch(
         isPresented: Binding<Bool>,
         text: Binding<String>,
         prompt: String
@@ -708,7 +731,7 @@ extension View {
 
 // MARK: - Location Switcher
 
-private struct EquipmentLocationSwitcher: View {
+private struct OrganizationLocationSwitcher: View {
     let locations: [String]
 
     @Binding var selectedIndex: Int
@@ -759,13 +782,13 @@ private struct EquipmentLocationSwitcher: View {
 }
 
 
-// MARK: - Equipment Row
+// MARK: - Organization Row
 
-private struct EquipmentRow: View {
-    let item: EquipmentRecord
+private struct AuthorizedOrganizationRow: View {
+    let organization: OrganizationRecord
 
-    private var accentColor: Color {
-        switch item.accessType {
+    private var accessColor: Color {
+        switch organization.accessType {
         case "Banned Access":
             return .red
         case "Priority Access":
@@ -777,25 +800,20 @@ private struct EquipmentRow: View {
         }
     }
 
-    private var equipmentIcon: EquipmentCategoryIcon {
-        EquipmentCategoryIcon(
-            category: item.category,
-            tint: accentColor
-        )
-    }
-
     var body: some View {
         HStack(
             alignment: .top,
             spacing: 12
         ) {
-            equipmentIcon
+            Image(systemName: "building.2.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(accessColor)
                 .frame(
                     width: 34,
                     height: 34
                 )
                 .background(
-                    accentColor.opacity(0.10),
+                    accessColor.opacity(0.10),
                     in: RoundedRectangle(
                         cornerRadius: 10,
                         style: .continuous
@@ -806,7 +824,7 @@ private struct EquipmentRow: View {
                 alignment: .leading,
                 spacing: 6
             ) {
-                Text(item.equipmentNumber)
+                Text(organization.name)
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
@@ -826,7 +844,7 @@ private struct EquipmentRow: View {
                 alignment: .leading
             )
 
-            if item.isNewThisWeek {
+            if organization.isNewThisWeek {
                 Text("New")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.blue)
@@ -848,23 +866,23 @@ private struct EquipmentRow: View {
 
     private var wideMetadataRow: some View {
         HStack(spacing: 6) {
-            Text(item.category)
+            Text(organization.relationType)
 
             metadataSeparator
 
-            Text(item.equipmentType)
+            Text(organization.industry)
 
             metadataSeparator
 
-            EquipmentLocationLabel(
-                locations: item.locations
+            OrganizationLocationLabel(
+                locations: organization.locations
             )
 
-            EquipmentAccessTypeChip(
-                accessType: item.accessType,
-                periodAccess: item.periodAccess,
-                hasNote: item.hasNote,
-                isLimitedTime: item.isLimitedTime
+            OrganizationAccessTypeChip(
+                accessType: organization.accessType,
+                periodAccess: organization.periodAccess,
+                hasNote: organization.hasNote,
+                isLimitedTime: organization.isLimitedTime
             )
         }
         .font(.subheadline)
@@ -878,11 +896,11 @@ private struct EquipmentRow: View {
             spacing: 6
         ) {
             HStack(spacing: 4) {
-                Text(item.category)
+                Text(organization.relationType)
 
                 metadataSeparator
 
-                Text(item.equipmentType)
+                Text(organization.industry)
             }
             .font(.subheadline)
             .foregroundStyle(.secondary)
@@ -895,15 +913,15 @@ private struct EquipmentRow: View {
     private var compactLocationAndAccess: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
-                EquipmentLocationLabel(
-                    locations: item.locations
+                OrganizationLocationLabel(
+                    locations: organization.locations
                 )
 
-                EquipmentAccessTypeChip(
-                    accessType: item.accessType,
-                    periodAccess: item.periodAccess,
-                    hasNote: item.hasNote,
-                    isLimitedTime: item.isLimitedTime
+                OrganizationAccessTypeChip(
+                    accessType: organization.accessType,
+                    periodAccess: organization.periodAccess,
+                    hasNote: organization.hasNote,
+                    isLimitedTime: organization.isLimitedTime
                 )
             }
             .fixedSize(
@@ -915,15 +933,15 @@ private struct EquipmentRow: View {
                 alignment: .leading,
                 spacing: 5
             ) {
-                EquipmentLocationLabel(
-                    locations: item.locations
+                OrganizationLocationLabel(
+                    locations: organization.locations
                 )
 
-                EquipmentAccessTypeChip(
-                    accessType: item.accessType,
-                    periodAccess: item.periodAccess,
-                    hasNote: item.hasNote,
-                    isLimitedTime: item.isLimitedTime
+                OrganizationAccessTypeChip(
+                    accessType: organization.accessType,
+                    periodAccess: organization.periodAccess,
+                    hasNote: organization.hasNote,
+                    isLimitedTime: organization.isLimitedTime
                 )
             }
         }
@@ -938,7 +956,7 @@ private struct EquipmentRow: View {
 
 // MARK: - Location Label
 
-private struct EquipmentLocationLabel: View {
+private struct OrganizationLocationLabel: View {
     let locations: [String]
 
     private var label: String {
@@ -966,7 +984,7 @@ private struct EquipmentLocationLabel: View {
 
 // MARK: - Access Chip
 
-private struct EquipmentAccessTypeChip: View {
+private struct OrganizationAccessTypeChip: View {
     let accessType: String
     let periodAccess: String
     let hasNote: Bool
@@ -1026,18 +1044,18 @@ private struct EquipmentAccessTypeChip: View {
 
 // MARK: - Editor
 
-struct EquipmentEditorView: View {
+struct OrganizationEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
-    let equipment: EquipmentRecord?
+    let organization: OrganizationRecord?
 
-    @State private var equipmentCategory: String
-    @State private var equipmentNumber: String
-    @State private var licensePlate: String
-    @State private var vinNumber: String
-    @State private var fullName: String
-    @State private var organizationName: String
-    @State private var accessPoint: String
+    @State private var name: String
+    @State private var relationType: String
+    @State private var industry: String
+    @State private var address: String
+    @State private var emailAddress: String
+    @State private var phoneNumber: String
+    @State private var selectedAccessPoints: Set<String>
     @State private var accessPolicy: AccessPolicy
 
     @State private var moreDetailsExpanded = false
@@ -1047,97 +1065,83 @@ struct EquipmentEditorView: View {
     @FocusState private var focusedField: Field?
 
     private enum Field {
-        case equipmentNumber
-        case licensePlate
-        case vinNumber
+        case name
+        case address
+        case email
+        case phone
     }
 
-    private let categories = [
-        "Car",
-        "Bobtail",
-        "Straight truck",
-        "Trailer",
-        "Container",
-        "Forklift",
+    private let relationTypes = [
+        "Tenant",
+        "Third Party Carrier",
+        "Vendor",
     ]
 
-    private let people = [
-        "Select a person",
-        "David Okafor",
-        "Olivia Martin",
-        "Elias Petrov",
-        "Milan Jović",
+    private let industries = [
+        "None",
+        "Automotive",
+        "Trucking",
+        "Residential",
     ]
 
-    private let organizations = [
-        "Select an organization",
-        "Northstar Logistics",
-        "CargoTrucks",
-        "Bison Transport",
-    ]
-
-    private let accessPoints = [
+    private let accessPointOptions = [
         "Full Facility Access",
-        "Main Gate",
-        "Gate In",
-        "Gate Out",
+        "Main Gate IN",
+        "Main Gate OUT",
+        "Carrier Gate IN",
+        "Carrier Gate OUT",
     ]
 
     init(
-        equipment: EquipmentRecord? = nil
+        organization: OrganizationRecord? = nil
     ) {
-        self.equipment = equipment
+        self.organization = organization
 
-        _equipmentCategory = State(
+        _name = State(
             initialValue:
-                equipment?.category ?? "Straight truck"
+                organization?.name ?? ""
         )
 
-        _equipmentNumber = State(
+        _relationType = State(
             initialValue:
-                equipment?.equipmentNumber ?? ""
+                organization?.relationType ?? "Tenant"
         )
 
-        _licensePlate = State(
+        _industry = State(
             initialValue:
-                equipment?.licensePlate ?? ""
+                organization?.industry ?? "None"
         )
 
-        _vinNumber = State(
+        _address = State(
             initialValue:
-                equipment?.vinNumber ?? ""
+                organization?.address ?? ""
         )
 
-        _fullName = State(
+        _emailAddress = State(
             initialValue:
-                equipment?.fullName.isEmpty == false
-                    ? equipment!.fullName
-                    : "Select a person"
+                organization?.emailAddress ?? ""
         )
 
-        _organizationName = State(
+        _phoneNumber = State(
             initialValue:
-                equipment?.organizationName.isEmpty == false
-                    ? equipment!.organizationName
-                    : "Select an organization"
+                organization?.phoneNumber ?? ""
         )
 
-        _accessPoint = State(
-            initialValue:
-                "Full Facility Access"
+        _selectedAccessPoints = State(
+            initialValue: ["Full Facility Access"]
         )
 
         var policy = AccessPolicy()
 
-        if let equipment {
-            policy.locations = equipment.locations.joined(
+        if let organization {
+            policy.locations = organization.locations.joined(
                 separator: ", "
             )
-            policy.accessType = equipment.accessType
-            policy.periodAccess = equipment.periodAccess
-            policy.limitedTimeAccess = equipment.isLimitedTime
+            policy.accessType = organization.accessType
+            policy.periodAccess = organization.periodAccess
+            policy.limitedTimeAccess = organization.isLimitedTime
 
-            if equipment.hasNote {
+            if organization.hasNote {
                 policy.note = "Existing authorization note"
             }
         }
@@ -1148,7 +1152,12 @@ struct EquipmentEditorView: View {
     }
 
     private var canSave: Bool {
-        !equipmentNumber
+        !name
+            .trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            .isEmpty
+        && !relationType
             .trimmingCharacters(
                 in: .whitespacesAndNewlines
             )
@@ -1158,18 +1167,20 @@ struct EquipmentEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                quickScanSection
+                if organization == nil {
+                    quickScanSection
+                }
 
                 VStack(
                     alignment: .leading,
                     spacing: 20
                 ) {
-                    categoryField
-                    equipmentNumberField
+                    nameField
+                    relationTypeField
                     moreDetailsArea
                     accessPolicyArea
 
-                    if equipment != nil {
+                    if organization != nil {
                         updateDetails
                     }
                 }
@@ -1193,9 +1204,9 @@ struct EquipmentEditorView: View {
                 .interactively
             )
             .navigationTitle(
-                equipment == nil
-                    ? "Add equipment"
-                    : "Edit equipment"
+                organization == nil
+                    ? "Add organization"
+                    : "Edit organization"
             )
             .navigationBarTitleDisplayMode(
                 .inline
@@ -1224,8 +1235,7 @@ struct EquipmentEditorView: View {
             }
             .confirmationDialog(
                 "Quick scan",
-                isPresented:
-                    $showingQuickScanOptions,
+                isPresented: $showingQuickScanOptions,
                 titleVisibility: .visible
             ) {
                 Button(
@@ -1249,7 +1259,7 @@ struct EquipmentEditorView: View {
                 ) { }
             } message: {
                 Text(
-                    "Choose how you want to scan the equipment tag or label."
+                    "Choose how you want to scan the company card or document."
                 )
             }
             .sheet(
@@ -1273,37 +1283,28 @@ struct EquipmentEditorView: View {
                 showingQuickScanOptions = true
             } label: {
                 HStack(spacing: 12) {
-                    Image(
-                        systemName: "text.viewfinder"
-                    )
-                    .font(
-                        .title3.weight(.semibold)
-                    )
-                    .foregroundStyle(.blue)
-                    .frame(
-                        width: 44,
-                        height: 44
-                    )
-                    .background(
-                        Color.blue.opacity(0.08),
-                        in: RoundedRectangle(
-                            cornerRadius: 10,
-                            style: .continuous
+                    Image(systemName: "text.viewfinder")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.blue)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            Color.blue.opacity(0.08),
+                            in: RoundedRectangle(
+                                cornerRadius: 10,
+                                style: .continuous
+                            )
                         )
-                    )
 
                     VStack(
                         alignment: .leading,
                         spacing: 3
                     ) {
                         Text("Quick scan")
-                            .font(
-                                .body.weight(.semibold)
-                            )
+                            .font(.body.weight(.semibold))
                             .foregroundStyle(.blue)
 
                         Text(
-                            "Scan the equipment tag or label to fill in the data."
+                            "Scan the company card or document to fill in the data."
                         )
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -1320,37 +1321,39 @@ struct EquipmentEditorView: View {
 
     // MARK: Primary fields
 
-    private var categoryField: some View {
-        menuField(
-            title: "Equipment category",
-            required: true,
-            selection: $equipmentCategory,
-            options: categories
-        )
-    }
-
-    private var equipmentNumberField: some View {
+    private var nameField: some View {
         formField(
-            title: "Equipment number",
+            title: "Organization name",
             required: true
         ) {
             TextField(
-                "Enter equipment number",
-                text: $equipmentNumber
+                "Enter organization name",
+                text: $name
             )
             .focused(
                 $focusedField,
-                equals: .equipmentNumber
+                equals: .name
+            )
+            .textContentType(
+                .organizationName
             )
             .textInputAutocapitalization(
-                .characters
+                .words
             )
-            .autocorrectionDisabled()
-            .submitLabel(.done)
+            .submitLabel(.next)
             .onSubmit {
                 focusedField = nil
             }
         }
+    }
+
+    private var relationTypeField: some View {
+        menuField(
+            title: "Relation type",
+            required: true,
+            selection: $relationType,
+            options: relationTypes
+        )
     }
 
     // MARK: More Details
@@ -1409,116 +1412,140 @@ struct EquipmentEditorView: View {
     @ViewBuilder
     private var detailsSummary: some View {
         let values = [
-            licensePlate,
-            vinNumber,
-            fullName == "Select a person"
-                ? ""
-                : fullName,
-            organizationName ==
-                "Select an organization"
-                ? ""
-                : organizationName,
-            accessPoint ==
-                "Full Facility Access"
-                ? ""
-                : accessPoint,
+            "Industry: \(industry)",
+            address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? nil
+                : "Address: \(address)",
+            emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? nil
+                : "Email: \(emailAddress)",
+            phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? nil
+                : "Phone: \(phoneNumber)",
+            "Access: \(accessPointSummary)",
         ]
-        .filter {
-            !$0.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            ).isEmpty
-        }
+        .compactMap { $0 }
 
-        if values.isEmpty {
-            Text("No additional details")
-                .font(.subheadline)
-                .foregroundStyle(.tertiary)
-        } else {
-            ScrollView(
-                .horizontal,
-                showsIndicators: false
-            ) {
-                HStack(spacing: 8) {
-                    ForEach(
-                        values,
-                        id: \.self
-                    ) { value in
-                        Text(value)
-                            .font(
-                                .caption.weight(.medium)
-                            )
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 5)
-                            .background(
-                                Color(
-                                    .secondarySystemGroupedBackground
-                                ),
-                                in: Capsule()
-                            )
-                    }
+        ScrollView(
+            .horizontal,
+            showsIndicators: false
+        ) {
+            HStack(spacing: 8) {
+                ForEach(
+                    values,
+                    id: \.self
+                ) { value in
+                    Text(value)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(
+                            Color(
+                                .secondarySystemGroupedBackground
+                            ),
+                            in: Capsule()
+                        )
                 }
             }
-            .scrollClipDisabled()
         }
+        .scrollClipDisabled()
+    }
+
+    private var accessPointSummary: String {
+        if selectedAccessPoints.isEmpty {
+            return "Select access points"
+        }
+
+        if selectedAccessPoints.contains("Full Facility Access") {
+            return "Full Facility Access"
+        }
+
+        return accessPointOptions
+            .filter { selectedAccessPoints.contains($0) }
+            .joined(separator: ", ")
     }
 
     private var moreDetailsFields: some View {
         VStack(spacing: 0) {
+            Menu {
+                ForEach(industries, id: \.self) { option in
+                    Button {
+                        industry = option
+                    } label: {
+                        if industry == option {
+                            Label(option, systemImage: "checkmark")
+                        } else {
+                            Text(option)
+                        }
+                    }
+                }
+            } label: {
+                menuRow(
+                    label: "Industry type",
+                    value: industry
+                )
+            }
+            .buttonStyle(.plain)
+
+            rowDivider
+
             detailsRow(
-                title: "License plate"
+                title: "Address"
             ) {
                 TextField(
                     "Optional",
-                    text: $licensePlate
+                    text: $address
                 )
                 .focused(
                     $focusedField,
-                    equals: .licensePlate
+                    equals: .address
                 )
-                .textInputAutocapitalization(
-                    .characters
-                )
-                .autocorrectionDisabled()
-                .multilineTextAlignment(
-                    .trailing
-                )
+                .multilineTextAlignment(.trailing)
             }
 
             rowDivider
 
             detailsRow(
-                title: "VIN number"
+                title: "Email"
             ) {
                 TextField(
                     "Optional",
-                    text: $vinNumber
+                    text: $emailAddress
                 )
                 .focused(
                     $focusedField,
-                    equals: .vinNumber
+                    equals: .email
                 )
-                .textInputAutocapitalization(
-                    .characters
-                )
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .multilineTextAlignment(
-                    .trailing
-                )
+                .multilineTextAlignment(.trailing)
             }
 
             rowDivider
-            personMenu
+
+            detailsRow(
+                title: "Phone number"
+            ) {
+                TextField(
+                    "Optional",
+                    text: $phoneNumber
+                )
+                .focused(
+                    $focusedField,
+                    equals: .phone
+                )
+                .keyboardType(.phonePad)
+                .multilineTextAlignment(.trailing)
+            }
+
             rowDivider
-            organizationMenu
-            rowDivider
-            accessPointMenu
+            accessPointsMenu
         }
         .background(
-            Color(
-                .secondarySystemGroupedBackground
-            ),
+            Color(.secondarySystemGroupedBackground),
             in: RoundedRectangle(
                 cornerRadius: 20,
                 style: .continuous
@@ -1526,87 +1553,14 @@ struct EquipmentEditorView: View {
         )
     }
 
-    private var personMenu: some View {
+    private var accessPointsMenu: some View {
         Menu {
-            ForEach(
-                people,
-                id: \.self
-            ) { person in
+            ForEach(accessPointOptions, id: \.self) { point in
                 Button {
-                    fullName = person
+                    toggleAccessPoint(point)
                 } label: {
-                    if fullName == person {
-                        Label(
-                            person,
-                            systemImage: "checkmark"
-                        )
-                    } else {
-                        Text(person)
-                    }
-                }
-            }
-        } label: {
-            menuRow(
-                label: "Full name",
-                value:
-                    fullName ==
-                        "Select a person"
-                    ? "Optional"
-                    : fullName
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var organizationMenu: some View {
-        Menu {
-            ForEach(
-                organizations,
-                id: \.self
-            ) { organization in
-                Button {
-                    organizationName =
-                        organization
-                } label: {
-                    if organizationName ==
-                        organization
-                    {
-                        Label(
-                            organization,
-                            systemImage: "checkmark"
-                        )
-                    } else {
-                        Text(organization)
-                    }
-                }
-            }
-        } label: {
-            menuRow(
-                label: "Organization",
-                value:
-                    organizationName ==
-                        "Select an organization"
-                    ? "Optional"
-                    : organizationName
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var accessPointMenu: some View {
-        Menu {
-            ForEach(
-                accessPoints,
-                id: \.self
-            ) { point in
-                Button {
-                    accessPoint = point
-                } label: {
-                    if accessPoint == point {
-                        Label(
-                            point,
-                            systemImage: "checkmark"
-                        )
+                    if selectedAccessPoints.contains(point) {
+                        Label(point, systemImage: "checkmark")
                     } else {
                         Text(point)
                     }
@@ -1615,10 +1569,25 @@ struct EquipmentEditorView: View {
         } label: {
             menuRow(
                 label: "Access points",
-                value: accessPoint
+                value: accessPointSummary
             )
         }
         .buttonStyle(.plain)
+    }
+
+    private func toggleAccessPoint(_ point: String) {
+        if point == "Full Facility Access" {
+            selectedAccessPoints = Set(accessPointOptions)
+            return
+        }
+
+        selectedAccessPoints.remove("Full Facility Access")
+
+        if selectedAccessPoints.contains(point) {
+            selectedAccessPoints.remove(point)
+        } else {
+            selectedAccessPoints.insert(point)
+        }
     }
 
     // MARK: Access Policy
@@ -1757,28 +1726,18 @@ struct EquipmentEditorView: View {
                     Button {
                         selection.wrappedValue = option
                     } label: {
-                        HStack(spacing: 10) {
-                            EquipmentCategoryIcon(
-                                category: option
+                        if selection.wrappedValue == option {
+                            Label(
+                                option,
+                                systemImage: "checkmark"
                             )
-                            .frame(width: 28, height: 18)
-
+                        } else {
                             Text(option)
-
-                            if selection.wrappedValue == option {
-                                Spacer()
-                                Image(systemName: "checkmark")
-                            }
                         }
                     }
                 }
             } label: {
-                HStack(spacing: 10) {
-                    EquipmentCategoryIcon(
-                        category: selection.wrappedValue
-                    )
-                    .frame(width: 32, height: 20)
-
+                HStack {
                     Text(
                         selection.wrappedValue
                     )
@@ -1865,20 +1824,14 @@ struct EquipmentEditorView: View {
 
             Spacer()
 
-            HStack(spacing: 5) {
-                Text(value)
-                    .foregroundStyle(.blue)
-                    .lineLimit(1)
+            Text(value)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .multilineTextAlignment(.trailing)
 
-                Image(
-                    systemName:
-                        "chevron.up.chevron.down"
-                )
-                .font(
-                    .caption2.weight(.semibold)
-                )
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(.blue)
-            }
         }
         .frame(minHeight: 50)
         .padding(.horizontal, 16)
@@ -1910,59 +1863,9 @@ struct EquipmentEditorView: View {
 }
 
 
-// MARK: - Editor Access Chip
-
-private struct EquipmentEditorAccessChip: View {
-    let accessType: String
-
-    private var tint: Color {
-        switch accessType {
-        case "Banned Access":
-            return .red
-        case "Priority Access":
-            return .blue
-        case "Specialized Access":
-            return .orange
-        default:
-            return .primary
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Text(accessType)
-                .font(
-                    .caption.weight(
-                        .semibold
-                    )
-                )
-
-            Image(
-                systemName:
-                    "infinity"
-            )
-            .font(
-                .caption.weight(
-                    .semibold
-                )
-            )
-        }
-        .foregroundStyle(tint)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(
-            Color(
-                .secondarySystemBackground
-            ),
-            in: Capsule()
-        )
-    }
-}
-
-
 // MARK: - Pagination
 
-private struct EquipmentPaginationFooter: View {
+private struct OrganizationPaginationFooter: View {
     let page: Int
     let itemCount: Int
     let pageSize: Int

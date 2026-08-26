@@ -36,12 +36,10 @@ struct AccessTypeChip: View {
         HStack(spacing: 6) {
             Text(accessType)
 
-            Image(
-                systemName: periodAccess == "One-time"
-                    ? "1.circle.fill"
-                    : "infinity.circle.fill"
-            )
-            .accessibilityLabel(periodAccess)
+            if periodAccess == "One-time" {
+                Image(systemName: "1.circle.fill")
+                    .accessibilityLabel(periodAccess)
+            }
 
             if hasNote {
                 Image(systemName: "note.text")

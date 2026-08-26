@@ -20,4 +20,10 @@ enum HapticFeedback {
         generator.prepare()
         generator.notificationOccurred(.success)
     }
+
+    static func criticalAction() {
+        let generator = UIImpactFeedbackGenerator(style: .heavy)
+        generator.prepare()
+        generator.impactOccurred(intensity: 1)
+    }
 }

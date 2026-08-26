@@ -385,6 +385,7 @@ struct AIView: View {
                             Button(
                                 role: .destructive
                             ) {
+                                HapticFeedback.criticalAction()
                                 delete(
                                     conversation
                                 )
@@ -650,7 +651,8 @@ struct AIThreadView: View {
     @State private var isSearchPresented =
         false
 
-    @State private var selectedAuthorizationPerson: ExistingPerson?
+    @State private var selectedAuthorizationCandidate: AuthorizationCandidate?
+    @State private var selectedAuthorizationMessageID: UUID?
 
     @Environment(\.dismiss)
     private var dismiss
@@ -689,13 +691,8 @@ struct AIThreadView: View {
                                             message
                                     },
                                     onSelectAuthorizationPerson: { candidate in
-                                        selectedAuthorizationPerson = candidate.person
-                                    },
-                                    onSaveAuthorizationPerson: { candidateID in
-                                        saveAuthorizationPerson(
-                                            candidateID,
-                                            in: message.id
-                                        )
+                                        selectedAuthorizationCandidate = candidate
+                                        selectedAuthorizationMessageID = message.id
                                     },
                                     onSaveAllAuthorizationPeople: {
                                         saveAllAuthorizationPeople(
@@ -718,16 +715,6 @@ struct AIThreadView: View {
                     .scrollDismissesKeyboard(
                         .interactively
                     )
-                    .onAppear {
-                        guard let lastID = messages.last?.id else {
-                            return
-                        }
-
-                        Task { @MainActor in
-                            await Task.yield()
-                            proxy.scrollTo(lastID, anchor: .bottom)
-                        }
-                    }
                     .onChange(
                         of: messages.count
                     ) {
@@ -765,7 +752,7 @@ struct AIThreadView: View {
                         onNewConversation
                 ) {
                     Image(
-                        systemName: "plus"
+                        systemName: "square.and.pencil"
                     )
                     .font(
                         .headline.weight(
@@ -802,6 +789,7 @@ struct AIThreadView: View {
                     Button(
                         role: .destructive
                     ) {
+                        HapticFeedback.criticalAction()
                         messages.removeAll()
                         onMessagesChanged()
                         closeThread()
@@ -840,8 +828,15 @@ struct AIThreadView: View {
                 messages: messages
             )
         }
-        .sheet(item: $selectedAuthorizationPerson) { person in
-            EditPersonAuthorizationView(person: person)
+        .sheet(item: $selectedAuthorizationCandidate) { candidate in
+            EditPersonAuthorizationView(person: candidate.person) {
+                if let selectedAuthorizationMessageID {
+                    saveAuthorizationPerson(
+                        candidate.id,
+                        in: selectedAuthorizationMessageID
+                    )
+                }
+            }
         }
         .alert(
             "Delete message?",
@@ -861,6 +856,7 @@ struct AIThreadView: View {
                 "Delete",
                 role: .destructive
             ) {
+                HapticFeedback.criticalAction()
                 if let messageToDelete {
                     messages.removeAll {
                         $0.id ==
@@ -1065,7 +1061,6 @@ private struct AIMessageRow: View {
     let onEdit: () -> Void
     let onDelete: () -> Void
     let onSelectAuthorizationPerson: (AuthorizationCandidate) -> Void
-    let onSaveAuthorizationPerson: (UUID) -> Void
     let onSaveAllAuthorizationPeople: () -> Void
 
     var body: some View {
@@ -1132,7 +1127,6 @@ private struct AIMessageRow: View {
                             AuthorizationReviewView(
                                 review: review,
                                 onSelectPerson: onSelectAuthorizationPerson,
-                                onSavePerson: onSaveAuthorizationPerson,
                                 onSaveAll: onSaveAllAuthorizationPeople
                             )
                             .padding(.top, 4)
@@ -1461,7 +1455,6 @@ struct AuthorizationReview {
 private struct AuthorizationReviewView: View {
     let review: AuthorizationReview
     let onSelectPerson: (AuthorizationCandidate) -> Void
-    let onSavePerson: (UUID) -> Void
     let onSaveAll: () -> Void
 
     private var hasUnsavedPeople: Bool {
@@ -1473,55 +1466,70 @@ private struct AuthorizationReviewView: View {
             ForEach(review.candidates) { candidate in
                 AuthorizationCandidateRow(
                     candidate: candidate,
-                    onSelect: { onSelectPerson(candidate) },
-                    onSave: { onSavePerson(candidate.id) }
+                    onSelect: { onSelectPerson(candidate) }
                 )
             }
 
-            Button(action: onSaveAll) {
-                Label(
-                    hasUnsavedPeople ? "Confirm all" : "All authorizations saved",
-                    systemImage: hasUnsavedPeople
-                        ? "checkmark.circle.fill"
-                        : "checkmark.seal.fill"
-                )
-                .frame(maxWidth: .infinity)
-                .foregroundStyle(
-                    hasUnsavedPeople
-                        ? Color.white
-                        : Color.primary.opacity(0.45)
-                )
+            if hasUnsavedPeople {
+                if #available(iOS 26.0, *) {
+                    confirmAllButton
+                        .glassEffect(.regular.tint(.blue), in: Capsule())
+                } else {
+                    confirmAllButton
+                        .background(.blue.opacity(0.85), in: Capsule())
+                }
+            } else {
+                confirmAllButton
+                    .background(Color(.tertiarySystemFill), in: Capsule())
             }
-            .disabled(!hasUnsavedPeople)
-            .buttonStyle(.borderedProminent)
-            .accessibilityHint("Saves authorization for every listed person")
         }
         .padding(.top, 2)
+    }
+
+    private var confirmAllButton: some View {
+        Button(action: onSaveAll) {
+            Label(
+                hasUnsavedPeople ? "Confirm all" : "All authorizations saved",
+                systemImage: hasUnsavedPeople
+                    ? "checkmark.circle.fill"
+                    : "checkmark.seal.fill"
+            )
+            .font(.body.weight(.semibold))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+        }
+        .foregroundStyle(hasUnsavedPeople ? Color.white : Color.primary.opacity(0.45))
+        .disabled(!hasUnsavedPeople)
+        .buttonStyle(.plain)
+        .accessibilityHint("Saves authorization for every listed person")
     }
 }
 
 private struct AuthorizationCandidateRow: View {
     let candidate: AuthorizationCandidate
     let onSelect: () -> Void
-    let onSave: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Button(action: onSelect) {
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "person.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 34, height: 34)
-                        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        Button(action: onSelect) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "person.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 34, height: 34)
+                    .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(candidate.person.fullName)
-                            .font(.body.weight(.semibold))
-                        Text(candidate.person.subtitle)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(candidate.person.fullName)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    Text(candidate.person.subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    HStack(spacing: 8) {
                         Label("All locations", systemImage: "mappin.and.ellipse")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(.secondary)
@@ -1534,28 +1542,27 @@ private struct AuthorizationCandidateRow: View {
                         )
                     }
 
-                    Spacer(minLength: 8)
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                        .padding(.top, 5)
+                    Label(
+                        candidate.isSaved ? "Saved" : "Not saved yet, open to confirm",
+                        systemImage: candidate.isSaved ? "checkmark.circle.fill" : "exclamationmark.circle.fill"
+                    )
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(candidate.isSaved ? .green : .secondary)
                 }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Opens this person's authorization details")
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            Button(action: onSave) {
-                Text(candidate.isSaved ? "Saved" : "Confirm")
-                    .frame(maxWidth: .infinity)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 5)
             }
-            .buttonStyle(.bordered)
-            .tint(.blue)
-            .disabled(candidate.isSaved)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
         }
-        .padding(12)
+        .buttonStyle(.plain)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityHint(candidate.isSaved ? "Authorization has been saved" : "Opens this person's authorization details to confirm and save")
     }
 }
 

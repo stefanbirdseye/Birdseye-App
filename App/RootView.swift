@@ -8,6 +8,7 @@ enum AppFlow {
 
 struct RootView: View {
     @State private var flow: AppFlow = .splash
+    @State private var snackbarCenter = SnackbarCenter()
 
     var body: some View {
         ZStack {
@@ -25,6 +26,8 @@ struct RootView: View {
             }
         }
         .id(flow)
+        .presentingSnackbars()
+        .environment(snackbarCenter)
         .transition(.opacity)
         .animation(.easeInOut(duration: 0.2), value: flow)
     }
