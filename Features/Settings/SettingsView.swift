@@ -266,13 +266,6 @@ struct NotificationsView: View {
     }
 }
 
-struct HelpView: View {
-
-    var body: some View {
-        Color.clear
-            .navigationTitle("Help Center")
-    }
-}
 
 #Preview {
     ProfileView(

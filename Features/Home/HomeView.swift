@@ -1,10 +1,14 @@
 import SwiftUI
 import Charts
+import TipKit
 
 struct HomeView: View {
 
+    @Environment(SnackbarCenter.self) private var snackbarCenter
+
     let onAIAction: (String) -> Void
     let onOpenSettings: () -> Void
+    let onOpenTeam: () -> Void
 
     private let locations = [
         LocationSummary(
@@ -45,6 +49,16 @@ struct HomeView: View {
     @State private var activeCreateSheet: HomeCreateSheet?
     @State private var hasLoadedDefaultLocation = false
     @State private var isLocationTipPresented = false
+    @State private var isOnboardingExpanded = true
+    @State private var isPersonTutorialActive = false
+    @AppStorage("hasDismissedOnboardingChecklist") private var hasDismissedOnboardingChecklist = false
+    @AppStorage("onboardingAuthorizedPersonComplete") private var isAuthorizedPersonComplete = false
+    @AppStorage("hasResetPersonTutorialCompletion") private var hasResetPersonTutorialCompletion = false
+    @AppStorage("onboardingOrganizationComplete") private var isOrganizationComplete = false
+    @AppStorage("onboardingEquipmentComplete") private var isEquipmentComplete = false
+    @AppStorage("onboardingAppointmentComplete") private var isAppointmentComplete = false
+    @AppStorage("onboardingCrewComplete") private var isCrewComplete = false
+    @AppStorage("onboardingAIComplete") private var isAIComplete = false
 
     private var selectedLocation: LocationSummary {
         locations[selectedLocationIndex]
@@ -56,9 +70,34 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 16) {
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Home")
-                            .font(.largeTitle.weight(.bold))
-                            .foregroundStyle(.primary)
+                        HStack(alignment: .center, spacing: 12) {
+                            Text("Now")
+                                .font(.largeTitle.weight(.bold))
+                                .foregroundStyle(.primary)
+
+                            Spacer(minLength: 0)
+
+                            if hasDismissedOnboardingChecklist || !isOnboardingExpanded {
+                                OnboardingToggleButton(
+                                    isExpanded: $isOnboardingExpanded,
+                                    onShow: {
+                                        hasDismissedOnboardingChecklist = false
+                                    }
+                                )
+                                .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                            }
+                        }
+
+                        if !hasDismissedOnboardingChecklist && isOnboardingExpanded {
+                            OnboardingChecklist(
+                                completedTasks: onboardingCompletionStates,
+                                isExpanded: $isOnboardingExpanded,
+                                onShowMe: showOnboardingTask,
+                                onRestart: restartOnboardingSteps,
+                                onHide: hideOnboardingSteps
+                            )
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
 
                         LocationSwitcher(
                             location: selectedLocation,
@@ -87,7 +126,13 @@ struct HomeView: View {
 
                     LocationDashboardContent(
                         location: selectedLocation,
-                        onAdd: { activeCreateSheet = $0 },
+                        isPersonTutorialActive: isPersonTutorialActive,
+                        onAbandonPersonTutorial: {
+                            isPersonTutorialActive = false
+                        },
+                        onAdd: { sheet in
+                            activeCreateSheet = sheet
+                        },
                         onAIAction: onAIAction
                     )
                     .id(selectedLocation.id)
@@ -99,11 +144,30 @@ struct HomeView: View {
             }
             .birdseyeRefreshable()
             .background(Color(.systemGroupedBackground))
+            .navigationTitle("Now")
+            .navigationBarTitleDisplayMode(.inline)
             .birdseyeMainTabPage()
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .accessibilityHidden(true)
+                }
+            }
             .sheet(item: $activeCreateSheet) { sheet in
                 switch sheet {
                 case .person:
-                    AddPersonAuthorizationView()
+                    AddPersonAuthorizationView(
+                        isPersonTutorialActive: isPersonTutorialActive,
+                        onCancelTutorial: {
+                            isPersonTutorialActive = false
+                        },
+                        onCompleteTutorial: {
+                            isPersonTutorialActive = false
+                            isAuthorizedPersonComplete = true
+                            snackbarCenter.show("Completed a tutorial: Authorized a driver.")
+                        }
+                    )
                 case .organization:
                     OrganizationEditorView()
                 case .equipment:
@@ -117,6 +181,11 @@ struct HomeView: View {
                 value: selectedLocation.id
             )
             .onAppear {
+                if !hasResetPersonTutorialCompletion {
+                    isAuthorizedPersonComplete = false
+                    hasResetPersonTutorialCompletion = true
+                }
+
                 guard !hasLoadedDefaultLocation else {
                     return
                 }
@@ -160,6 +229,386 @@ struct HomeView: View {
 
             selectedLocationIndex += 1
         }
+    }
+
+    private var onboardingCompletionStates: [Bool] {
+        [
+            true,
+            isAuthorizedPersonComplete,
+            isAppointmentComplete,
+            isCrewComplete,
+            isAIComplete
+        ]
+    }
+
+    private func restartOnboardingSteps() {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+            isAuthorizedPersonComplete = false
+            isAppointmentComplete = false
+            isCrewComplete = false
+            isAIComplete = false
+        }
+    }
+
+    private func hideOnboardingSteps() {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            hasDismissedOnboardingChecklist = true
+            isOnboardingExpanded = false
+        }
+    }
+
+    private func showOnboardingTask(_ task: OnboardingTask) {
+        switch task {
+        case .workspace:
+            break
+        case .authorizedPerson:
+            Task {
+                await HomeAddRegularDriverTip().resetEligibility()
+            }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+                isPersonTutorialActive = true
+            }
+        case .appointment:
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+                isAppointmentComplete = true
+            }
+            activeCreateSheet = .appointment
+        case .crew:
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+                isCrewComplete = true
+            }
+            onOpenTeam()
+        case .ai:
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+                isAIComplete = true
+            }
+            onAIAction("Help me get started with Birdseye AI.")
+        }
+    }
+}
+
+private enum OnboardingTask: CaseIterable, Identifiable, Hashable {
+    case workspace
+    case authorizedPerson
+    case appointment
+    case crew
+    case ai
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .workspace: "Join your workspace"
+        case .authorizedPerson: "Authorize a driver"
+        case .appointment: "Schedule an appointment"
+        case .crew: "Invite your team"
+        case .ai: "Ask AI to do anything."
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .workspace: "Workspace"
+        case .authorizedPerson: "People"
+        case .appointment: "Appointments"
+        case .crew: "Team"
+        case .ai: "Birdseye AI"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .workspace: "Your workspace is ready."
+        case .authorizedPerson: "Add a regular driver to your list."
+        case .appointment: "Know who’s arriving and when."
+        case .crew: "Bring teammates in and set their access."
+        case .ai: "Try Birdseye AI"
+        }
+    }
+
+    var thumbnailSymbol: String {
+        switch self {
+        case .workspace: "checkmark.circle.fill"
+        case .authorizedPerson: "person.badge.plus"
+        case .appointment: "calendar.badge.clock"
+        case .crew: "person.3.fill"
+        case .ai: "sparkles"
+        }
+    }
+
+    var iconColor: Color {
+        switch self {
+        case .workspace: .green
+        case .authorizedPerson: .blue
+        case .appointment: .purple
+        case .crew: .teal
+        case .ai: .pink
+        }
+    }
+
+}
+
+private struct OnboardingToggleButton: View {
+
+    @Binding var isExpanded: Bool
+    let onShow: () -> Void
+
+    var body: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                onShow()
+                isExpanded = true
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text("Learn basics")
+                    .font(.caption.weight(.semibold))
+
+                Image(systemName: "chevron.down")
+                    .font(.caption2.weight(.bold))
+                    .contentTransition(.symbolEffect(.replace))
+                    .symbolEffect(.bounce, value: isExpanded)
+            }
+            .foregroundStyle(Color(.secondaryLabel))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(.secondarySystemBackground), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Learn basics")
+        .accessibilityHint("Show onboarding steps")
+    }
+}
+
+private struct OnboardingChecklist: View {
+
+    let completedTasks: [Bool]
+    @Binding var isExpanded: Bool
+    let onShowMe: (OnboardingTask) -> Void
+    let onRestart: () -> Void
+    let onHide: () -> Void
+
+    private var completedCount: Int {
+        completedTasks.filter { $0 }.count
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            OnboardingChecklistHeader(
+                completedCount: completedCount,
+                totalCount: OnboardingTask.allCases.count,
+                isExpanded: $isExpanded
+            )
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            ForEach(Array(OnboardingTask.allCases.enumerated()), id: \.element) { index, task in
+                OnboardingTaskRow(
+                    task: task,
+                    stepNumber: index + 1,
+                    isComplete: completedTasks[index],
+                    isCurrent: !completedTasks[index] && !completedTasks.prefix(index).contains(false),
+                    onShowMe: { onShowMe(task) }
+                )
+                .padding(.horizontal, 12)
+            }
+
+            if completedCount == OnboardingTask.allCases.count {
+                OnboardingCompletionActions(
+                    onRestart: onRestart,
+                    onHide: onHide
+                )
+                .padding(.horizontal, 12)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
+            }
+        }
+        .padding(0)
+        .background(
+            Color(.secondarySystemGroupedBackground),
+            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color(.separator).opacity(0.45), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct OnboardingChecklistHeader: View {
+
+    let completedCount: Int
+    let totalCount: Int
+    @Binding var isExpanded: Bool
+
+    private var isComplete: Bool {
+        completedCount == totalCount
+    }
+
+    var body: some View {
+        HStack(spacing: 20) {
+            OnboardingProgressRing(completedCount: completedCount, totalCount: totalCount)
+
+            VStack(alignment: .leading, spacing: 1) {
+                if isComplete {
+                    Text("You're all set!")
+                        .font(.headline.weight(.semibold))
+
+                    Text("Find more tips in Help.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Get started")
+                        .font(.headline.weight(.semibold))
+
+                    Text("Learn the basics in 2 minutes.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    isExpanded = false
+                }
+            } label: {
+                Image(systemName: "chevron.up")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color(.secondaryLabel))
+                    .frame(width: 36, height: 36)
+                    .background(.thinMaterial, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Collapse onboarding")
+            .accessibilityHint("Shows the Learn basics button")
+        }
+    }
+}
+
+private struct OnboardingCompletionActions: View {
+
+    let onRestart: () -> Void
+    let onHide: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Spacer(minLength: 0)
+
+            Button("Restart", systemImage: "arrow.counterclockwise", action: onRestart)
+                .font(.subheadline.weight(.semibold))
+                .buttonStyle(.bordered)
+
+            Button(action: onHide) {
+                Label("Complete", systemImage: "checkmark")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(Color.green, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Complete onboarding")
+            .accessibilityHint("Collapses onboarding to the Learn basics button")
+        }
+    }
+}
+
+private struct OnboardingProgressRing: View {
+
+    let completedCount: Int
+    let totalCount: Int
+
+    private var isComplete: Bool {
+        completedCount == totalCount
+    }
+
+    var body: some View {
+        Gauge(value: Double(completedCount), in: 0...Double(totalCount)) {
+            Text("Onboarding progress")
+        } currentValueLabel: {
+            Text("\(completedCount)/\(totalCount)")
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .contentTransition(.numericText(value: Double(completedCount)))
+        }
+        .gaugeStyle(.accessoryCircularCapacity)
+        .tint(isComplete ? .green : .accentColor)
+        .frame(width: 48, height: 48)
+        .animation(.spring(response: 0.35, dampingFraction: 0.78), value: completedCount)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(completedCount) of \(totalCount) steps complete")
+    }
+}
+
+private struct OnboardingTaskRow: View {
+
+    let task: OnboardingTask
+    let stepNumber: Int
+    let isComplete: Bool
+    let isCurrent: Bool
+    let onShowMe: () -> Void
+
+    var body: some View {
+        Button(action: onShowMe) {
+            HStack(spacing: 10) {
+                Image(systemName: isComplete ? "checkmark.circle.fill" : (isCurrent ? "circle.inset.filled" : "circle"))
+                    .font(.title3)
+                    .foregroundStyle(isComplete ? Color.green : (isCurrent ? Color.accentColor : Color.secondary))
+                    .frame(width: 28, height: 28)
+                    .contentTransition(.symbolEffect(.replace))
+                    .symbolEffect(.bounce, value: isComplete)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(task.title)
+                        .font(.subheadline.weight(.medium))
+                        .strikethrough(isComplete, color: .secondary)
+                        .foregroundStyle(isComplete ? .secondary : .primary)
+
+                    if isCurrent {
+                        Text(task.description)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                if isCurrent {
+                    HStack(spacing: 6) {
+                        Text("Start")
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Color.accentColor, in: Capsule())
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                } else if !isComplete {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color(.tertiaryLabel))
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(.vertical, 8)
+
+[File truncated: 754 more lines available. Use 'offset' and 'limit' parameters to read more content.]
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .hoverEffect(.highlight)
+        .sensoryFeedback(.success, trigger: isComplete)
+        .animation(.spring(response: 0.35, dampingFraction: 0.78), value: isComplete)
+        .animation(.spring(response: 0.35, dampingFraction: 0.78), value: isCurrent)
+        .accessibilityLabel(isComplete ? "\(task.title), completed" : task.title)
+        .accessibilityHint(isComplete ? "" : "Opens this getting started action")
     }
 }
 
@@ -353,13 +802,43 @@ private struct LocationSwitcher: View {
 private struct LocationDashboardContent: View {
 
     let location: LocationSummary
+    let isPersonTutorialActive: Bool
+    let onAbandonPersonTutorial: () -> Void
     let onAdd: (HomeCreateSheet) -> Void
     let onAIAction: (String) -> Void
+
+    private var personTutorialTipPresentation: Binding<Bool> {
+        Binding(
+            get: { isPersonTutorialActive },
+            set: { isPresented in
+                if !isPresented {
+                    onAbandonPersonTutorial()
+                }
+            }
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
 
-            MetricGrid(location: location, onAdd: onAdd)
+            if isPersonTutorialActive {
+                TipView(
+                    HomeAddRegularDriverTip(),
+                    isPresented: personTutorialTipPresentation,
+                    arrowEdge: .bottom
+                ) { action in
+                    guard action.id == "next-step" else { return }
+                    onAdd(.person)
+                }
+                .tint(.blue)
+                .backgroundStyle(Color.white)
+            }
+
+            MetricGrid(
+                location: location,
+                isPersonTutorialActive: isPersonTutorialActive,
+                onAdd: onAdd
+            )
 
             AccessRecordsSummaryCard()
 
@@ -400,6 +879,7 @@ private struct LocationDashboardContent: View {
 private struct MetricGrid: View {
 
     let location: LocationSummary
+    let isPersonTutorialActive: Bool
     let onAdd: (HomeCreateSheet) -> Void
 
     private let columns = [
@@ -420,6 +900,7 @@ private struct MetricGrid: View {
                 systemImage: "person.fill",
                 tint: .blue,
                 destination: AuthorizedPeopleOperationsView(),
+                isHighlighted: isPersonTutorialActive,
                 onAdd: { onAdd(.person) }
             )
 
@@ -430,6 +911,7 @@ private struct MetricGrid: View {
                 systemImage: "building.2.fill",
                 tint: .blue,
                 destination: AuthorizedOrganizationsOperationsView(),
+                isHighlighted: false,
                 onAdd: { onAdd(.organization) }
             )
 
@@ -440,6 +922,7 @@ private struct MetricGrid: View {
                 systemImage: "truck.box.fill",
                 tint: .blue,
                 destination: EquipmentOperationsView(),
+                isHighlighted: false,
                 onAdd: { onAdd(.equipment) }
             )
 
@@ -450,7 +933,7 @@ private struct MetricGrid: View {
                 systemImage: "calendar",
                 tint: .blue,
                 destination: AppointmentsOperationsView(),
-
+                isHighlighted: false,
                 onAdd: { onAdd(.appointment) }
             )
         }
@@ -460,6 +943,24 @@ private struct MetricGrid: View {
 
 // MARK: - Metric Card
 
+private struct HomeAddRegularDriverTip: Tip {
+    var title: Text {
+        Text("1. Add a regular driver")
+    }
+
+    var message: Text? {
+        Text("Start here to add someone you authorize often.")
+    }
+
+    var image: Image? {
+        Image(systemName: "person.badge.plus")
+    }
+
+    var actions: [Action] {
+        Action(id: "next-step", title: "Next step")
+    }
+}
+
 private struct MetricCard<Destination: View>: View {
 
     let title: String
@@ -468,6 +969,7 @@ private struct MetricCard<Destination: View>: View {
     let systemImage: String
     let tint: Color
     let destination: Destination
+    let isHighlighted: Bool
     let onAdd: () -> Void
 
     var body: some View {
@@ -558,6 +1060,14 @@ private struct MetricCard<Destination: View>: View {
                         .primary.opacity(0.12),
                         in: Circle()
                     )
+                    .overlay {
+                        if isHighlighted {
+                            Circle()
+                                .stroke(.blue, lineWidth: 3)
+                                .padding(-6)
+                        }
+                    }
+                    .symbolEffect(.pulse, isActive: isHighlighted)
             }
             .buttonStyle(.plain)
             .padding(12)
@@ -594,7 +1104,7 @@ private struct AccessRecordsSummaryCard: View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Access Point Records")
+                    Text("Activity")
                         .font(.headline.weight(.semibold))
 
                     Text("Inbound and outbound activity over the last 7 days.")
@@ -614,7 +1124,7 @@ private struct AccessRecordsSummaryCard: View {
                         .foregroundStyle(.foreground)
 
                 }
-                .accessibilityLabel("View access point records")
+                .accessibilityLabel("View activity")
             }
 
             HStack(spacing: 28) {
@@ -690,8 +1200,10 @@ private struct InventorySummaryCard: View {
 
                 Spacer(minLength: 8)
 
+
+[File truncated: 154 more lines available. Use 'offset' and 'limit' parameters to read more content.]
                 NavigationLink {
-                    InventoryView()
+                    InventoryOperationsView()
                 } label: {
                     Image(systemName: "chevron.right")
                         .font(.subheadline.weight(.semibold))
@@ -839,6 +1351,7 @@ private struct AIActionButton: View {
 #Preview {
     HomeView(
         onAIAction: { _ in },
-        onOpenSettings: {}
+        onOpenSettings: {},
+        onOpenTeam: {}
     )
 }
