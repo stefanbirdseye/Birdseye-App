@@ -12,7 +12,7 @@ enum MainTab: Hashable {
     var pageTitle: String {
         switch self {
         case .home:
-            "Home"
+            "Now"
         case .ai:
             "Birdseye AI"
         case .team:
@@ -30,7 +30,7 @@ struct MainTabView: View {
     @Environment(\.horizontalSizeClass)
     private var actualHorizontalSizeClass
 
-    @State private var selectedTab: MainTab = .home
+    @State private var selectedTab: MainTab = .ai
     @State private var shouldShowSettings = false
 
     @State private var composerText = ""
@@ -42,11 +42,13 @@ struct MainTabView: View {
 
     @State private var isThreadPresented = false
     @State private var isAIResponding = false
+    @State private var isConversationHistoryPresented = false
 
     @State private var currentConversationTitle = "New conversation"
 
     @State private var searchActivity = SearchActivity()
     @State private var pageContextStore = PageContextStore()
+    @State private var aiComposerStore = AIComposerStore()
 
     @FocusState private var isComposerFocused: Bool
 
@@ -59,7 +61,7 @@ struct MainTabView: View {
     private var composerPrompt: String {
         selectedTab == .ai && isThreadPresented
             ? "Continue in this thread"
-            : "Ask anything..."
+            : "Ask AI, type it like an email..."
     }
 
     private var composerPageContext: String? {
@@ -106,7 +108,10 @@ struct MainTabView: View {
                         .zIndex(1)
                 }
 
-                if !searchActivity.isSearching {
+                if !searchActivity.isSearching
+                    && !isConversationHistoryPresented
+                    && !pageContextStore.hidesWorkspaceComposer
+                {
                     WorkspaceAIComposer(
                         text: $composerText,
                         attachedFiles: $composerAttachments,
@@ -149,8 +154,39 @@ struct MainTabView: View {
                     )
                     .zIndex(2)
                 }
+
+                if isConversationHistoryPresented {
+                    AIConversationHistoryDrawer(
+                        conversations: $conversations,
+                        onOpen: { conversation in
+                            isConversationHistoryPresented = false
+                            selectedTab = .ai
+                            messages = conversation.messages
+                            currentConversationTitle = conversation.title
+                            activeConversationID = conversation.id
+                            isThreadPresented = true
+                        },
+                        onDelete: { conversation in
+                            conversations.removeAll { $0.id == conversation.id }
+                        },
+                        onNewConversation: {
+                            isConversationHistoryPresented = false
+                            selectedTab = .ai
+                            messages = []
+                            currentConversationTitle = "New conversation"
+                            activeConversationID = UUID()
+                            isThreadPresented = true
+                        },
+                        onDismiss: {
+                            isConversationHistoryPresented = false
+                        }
+                    )
+                    .transition(.move(edge: .leading))
+                    .zIndex(3)
+                }
             }
         }
+        .animation(.easeInOut(duration: 0.25), value: isConversationHistoryPresented)
         .ignoresSafeArea(
             .keyboard,
             edges: .bottom
@@ -176,6 +212,23 @@ struct MainTabView: View {
         }
         .environment(searchActivity)
         .environment(pageContextStore)
+        .environment(aiComposerStore)
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: .birdseyeOpenConversationHistory
+            )
+        ) { _ in
+            isConversationHistoryPresented = true
+        }
+        .onChange(of: aiComposerStore.prompt) { _, prompt in
+            guard let prompt else {
+                return
+            }
+
+            composerText = prompt
+            isComposerFocused = true
+            aiComposerStore.prompt = nil
+        }
         .onChange(of: selectedTab) { _, _ in
             HapticFeedback.selectionChanged()
         }
@@ -185,25 +238,6 @@ struct MainTabView: View {
 
     private var nativeTabView: some View {
         TabView(selection: $selectedTab) {
-
-            Tab(
-                "Home",
-                systemImage: "house",
-                value: MainTab.home
-            ) {
-                HomeView(
-                    onAIAction: { prompt in
-                        composerText = prompt
-                        isComposerFocused = true
-                    },
-                    onOpenSettings: openSettings
-                )
-                .environment(
-                    \.horizontalSizeClass,
-                    actualHorizontalSizeClass
-                )
-                .bottomReadabilityBlur()
-            }
 
             Tab(
                 "AI",
@@ -234,6 +268,28 @@ struct MainTabView: View {
             }
 
             Tab(
+                "Now",
+                systemImage: "house",
+                value: MainTab.home
+            ) {
+                HomeView(
+                    onAIAction: { prompt in
+                        composerText = prompt
+                        isComposerFocused = true
+                    },
+                    onOpenSettings: openSettings,
+                    onOpenTeam: {
+                        selectedTab = .team
+                    }
+                )
+                .environment(
+                    \.horizontalSizeClass,
+                    actualHorizontalSizeClass
+                )
+                .bottomReadabilityBlur()
+            }
+
+            Tab(
                 "Team",
                 systemImage: "person.2",
                 value: MainTab.team
@@ -253,7 +309,8 @@ struct MainTabView: View {
             ) {
                 ProfileView(
                     flow: $flow,
-                    showSettings: $shouldShowSettings
+                    showSettings: $shouldShowSettings,
+                    onRestartOnboarding: returnToHomeAfterRestartingOnboarding
                 )
                 .environment(
                     \.horizontalSizeClass,
@@ -274,6 +331,11 @@ struct MainTabView: View {
     private func openSettings() {
         selectedTab = .profile
         shouldShowSettings = true
+    }
+
+    private func returnToHomeAfterRestartingOnboarding() {
+        shouldShowSettings = false
+        selectedTab = .home
     }
 
     // MARK: - Active window

@@ -1,8 +1,7 @@
 import SwiftUI
 
-struct AuthorizedOrganizationsOperationsView: View {
-
-    private let organizations: [OrganizationRecord] = (1...100).map { index in
+enum OrganizationDirectory {
+    static let records: [OrganizationRecord] = (1...100).map { index in
         let names = [
             "Northstar Logistics",
             "SafeGate Services",
@@ -85,6 +84,18 @@ struct AuthorizedOrganizationsOperationsView: View {
             isNewThisWeek: index > 97
         )
     }
+
+    static var names: [String] {
+        records
+            .map(\.name)
+            .sorted {
+                $0.localizedStandardCompare($1) == .orderedAscending
+            }
+    }
+}
+
+struct AuthorizedOrganizationsOperationsView: View {
+    @State private var organizations = OrganizationDirectory.records
 
     private let locations = [
         "All locations",
@@ -256,6 +267,12 @@ struct AuthorizedOrganizationsOperationsView: View {
         )
     }
 
+    private var hasActiveSortOrFilter: Bool {
+        organizationFilter != .all
+            || selectedLocationIndex != 1
+            || sortOrder != .recentlyAdded
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             AuthorizedOrganizationsResultsContent(
@@ -265,6 +282,13 @@ struct AuthorizedOrganizationsOperationsView: View {
                 selectedLocationIndex: $selectedLocationIndex,
                 page: page,
                 pageSize: pageSize,
+                hasActiveSortOrFilter: hasActiveSortOrFilter,
+                onResetSortAndFilters: {
+                    organizationFilter = .all
+                    selectedLocationIndex = 1
+                    sortOrder = .recentlyAdded
+                    page = 0
+                },
                 onSelect: { organization in
                     selectedOrganization = organization
                 },
@@ -298,7 +322,7 @@ struct AuthorizedOrganizationsOperationsView: View {
                 .accessibilityLabel("Search")
 
                 Menu {
-                    Section("Sort") {
+                    Menu("Sort", systemImage: "arrow.up.arrow.down") {
                         ForEach(OrganizationSortOrder.allCases) { order in
                             Button {
                                 sortOrder = order
@@ -310,16 +334,20 @@ struct AuthorizedOrganizationsOperationsView: View {
                                         systemImage: "checkmark"
                                     )
                                 } else {
-                                    Label(
-                                        order.title,
-                                        systemImage: order.systemImage
-                                    )
+                                    Text(order.title)
                                 }
                             }
                         }
+
+                        Divider()
+
+                        Button("Reset to default") {
+                            sortOrder = .recentlyAdded
+                            page = 0
+                        }
                     }
 
-                    Section("Filter") {
+                    Menu("Filter", systemImage: "line.3.horizontal.decrease.circle") {
                         ForEach(OrganizationFilter.allCases) { filter in
                             Button {
                                 organizationFilter = filter
@@ -331,13 +359,30 @@ struct AuthorizedOrganizationsOperationsView: View {
                                         systemImage: "checkmark"
                                     )
                                 } else {
-                                    Label(
-                                        filter.title,
-                                        systemImage: filter.systemImage
-                                    )
+                                    Text(filter.title)
                                 }
                             }
                         }
+
+                        Divider()
+
+                        Button("Reset to default") {
+                            organizationFilter = .all
+                            page = 0
+                        }
+                    }
+
+                    if hasActiveSortOrFilter {
+                        Button {
+                            organizationFilter = .all
+                            selectedLocationIndex = 1
+                            sortOrder = .recentlyAdded
+                            page = 0
+                        } label: {
+                            Text("Reset view")
+                                .foregroundStyle(.blue)
+                        }
+                        .tint(.blue)
                     }
 
                     Section("Actions") {
@@ -349,28 +394,13 @@ struct AuthorizedOrganizationsOperationsView: View {
                                 systemImage: "square.and.arrow.up"
                             )
                         }
-
-                        if organizationFilter != .all
-                            || !searchText.isEmpty
-                            || selectedLocationIndex != 1
-                            || sortOrder != .recentlyAdded
-                        {
-                            Button {
-                                organizationFilter = .all
-                                searchText = ""
-                                selectedLocationIndex = 1
-                                sortOrder = .recentlyAdded
-                                page = 0
-                            } label: {
-                                Label(
-                                    "Reset view",
-                                    systemImage: "arrow.counterclockwise"
-                                )
-                            }
-                        }
                     }
                 } label: {
-                    Image(systemName: "ellipsis")
+                    Image(
+                        systemName: hasActiveSortOrFilter
+                            ? "ellipsis.circle.fill"
+                            : "ellipsis"
+                    )
                 }
                 .tint(.primary)
                 .accessibilityLabel("Sort, filter, and more")
@@ -408,7 +438,19 @@ struct AuthorizedOrganizationsOperationsView: View {
         }
         .sheet(item: $selectedOrganization) { organization in
             OrganizationEditorView(
-                organization: organization
+                organization: organization,
+                isAuthorizationActive: organizations.first(
+                    where: { $0.id == organization.id }
+                )?.isActive ?? true,
+                onRemoveAuthorization: {
+                    guard let index = organizations.firstIndex(
+                        where: { $0.id == organization.id }
+                    ) else {
+                        return
+                    }
+
+                    organizations[index].isActive = false
+                }
             )
         }
     }
@@ -579,7 +621,7 @@ struct OrganizationRecord: Identifiable {
     let periodAccess: String
     let hasNote: Bool
     let isLimitedTime: Bool
-    let isActive: Bool
+    var isActive: Bool
     let addedOrder: Int
     let isNewThisWeek: Bool
 }
@@ -596,6 +638,8 @@ private struct AuthorizedOrganizationsResultsContent: View {
 
     let page: Int
     let pageSize: Int
+    let hasActiveSortOrFilter: Bool
+    let onResetSortAndFilters: () -> Void
 
     let onSelect: (OrganizationRecord) -> Void
     let onPrevious: () -> Void
@@ -609,6 +653,15 @@ private struct AuthorizedOrganizationsResultsContent: View {
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
+
+                    if hasActiveSortOrFilter {
+                        Button("Reset view") {
+                            onResetSortAndFilters()
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.blue)
+                    }
 
                     Spacer()
 
@@ -658,9 +711,23 @@ private struct AuthorizedOrganizationsResultsContent: View {
 
 // MARK: - Organizations Card
 
-private struct AuthorizedOrganizationsCard: View {
+struct AuthorizedOrganizationsCard: View {
     let organizations: [OrganizationRecord]
+    let selectedOrganizationName: String?
+    let showsNewBadge: Bool
     let onSelect: (OrganizationRecord) -> Void
+
+    init(
+        organizations: [OrganizationRecord],
+        selectedOrganizationName: String? = nil,
+        showsNewBadge: Bool = true,
+        onSelect: @escaping (OrganizationRecord) -> Void
+    ) {
+        self.organizations = organizations
+        self.selectedOrganizationName = selectedOrganizationName
+        self.showsNewBadge = showsNewBadge
+        self.onSelect = onSelect
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -672,7 +739,9 @@ private struct AuthorizedOrganizationsCard: View {
                     onSelect(organization)
                 } label: {
                     AuthorizedOrganizationRow(
-                        organization: organization
+                        organization: organization,
+                        isSelected: organization.name == selectedOrganizationName,
+                        showsNewBadge: showsNewBadge
                     )
                 }
                 .buttonStyle(.plain)
@@ -786,6 +855,8 @@ private struct OrganizationLocationSwitcher: View {
 
 private struct AuthorizedOrganizationRow: View {
     let organization: OrganizationRecord
+    let isSelected: Bool
+    let showsNewBadge: Bool
 
     private var accessColor: Color {
         switch organization.accessType {
@@ -844,7 +915,12 @@ private struct AuthorizedOrganizationRow: View {
                 alignment: .leading
             )
 
-            if organization.isNewThisWeek {
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.blue)
+                    .accessibilityLabel("Selected")
+            } else if showsNewBadge && organization.isNewThisWeek {
                 Text("New")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.blue)
@@ -1048,6 +1124,9 @@ struct OrganizationEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
     let organization: OrganizationRecord?
+    let onSave: (String) -> Void
+    @State private var isAuthorizationActive: Bool
+    let onRemoveAuthorization: () -> Void
 
     @State private var name: String
     @State private var relationType: String
@@ -1061,6 +1140,7 @@ struct OrganizationEditorView: View {
     @State private var moreDetailsExpanded = false
     @State private var showingQuickScanOptions = false
     @State private var showingAccessPolicy = false
+    @State private var showingRemoveAuthorizationConfirmation = false
 
     @FocusState private var focusedField: Field?
 
@@ -1093,9 +1173,15 @@ struct OrganizationEditorView: View {
     ]
 
     init(
-        organization: OrganizationRecord? = nil
+        organization: OrganizationRecord? = nil,
+        isAuthorizationActive: Bool = true,
+        onSave: @escaping (String) -> Void = { _ in },
+        onRemoveAuthorization: @escaping () -> Void = {}
     ) {
         self.organization = organization
+        self.onSave = onSave
+        _isAuthorizationActive = State(initialValue: isAuthorizationActive)
+        self.onRemoveAuthorization = onRemoveAuthorization
 
         _name = State(
             initialValue:
@@ -1182,6 +1268,7 @@ struct OrganizationEditorView: View {
 
                     if organization != nil {
                         updateDetails
+                        removeAuthorizationButton
                     }
                 }
                 .listRowInsets(
@@ -1226,6 +1313,11 @@ struct OrganizationEditorView: View {
                 ) {
                     Button("Save") {
                         focusedField = nil
+                        onSave(
+                            name.trimmingCharacters(
+                                in: .whitespacesAndNewlines
+                            )
+                        )
                         dismiss()
                     }
                     .buttonStyle(.glassProminent)
@@ -1262,16 +1354,48 @@ struct OrganizationEditorView: View {
                     "Choose how you want to scan the company card or document."
                 )
             }
+            .alert(
+                "Remove authorization?",
+                isPresented: $showingRemoveAuthorizationConfirmation
+            ) {
+                Button("Remove authorization", role: .destructive) {
+                    focusedField = nil
+                    onRemoveAuthorization()
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will not delete \(organization?.name ?? "this organization"). It will be marked inactive and will no longer have access. Its name will remain in the system for previous records and history. To give it access again later, add a new access policy.")
+            }
             .sheet(
                 isPresented: $showingAccessPolicy
             ) {
                 AccessPolicyEditorView(
-                    policy: accessPolicy
-                ) { updatedPolicy in
-                    accessPolicy = updatedPolicy
-                }
+                    policy: accessPolicy,
+                    onSave: { updatedPolicy in
+                        accessPolicy = updatedPolicy
+                    }
+                )
             }
         }
+    }
+
+    private var removeAuthorizationButton: some View {
+        Button(role: .destructive) {
+            focusedField = nil
+            showingRemoveAuthorizationConfirmation = true
+        } label: {
+            Text("Remove authorization")
+                .font(.caption.weight(.medium))
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .disabled(!isAuthorizationActive)
+        .accessibilityHint(
+            isAuthorizationActive
+                ? "Marks this organization inactive and removes its access."
+                : "Authorization has already been removed."
+        )
     }
 
     // MARK: Quick Scan
@@ -1426,31 +1550,23 @@ struct OrganizationEditorView: View {
         ]
         .compactMap { $0 }
 
-        ScrollView(
-            .horizontal,
-            showsIndicators: false
-        ) {
-            HStack(spacing: 8) {
-                ForEach(
-                    values,
-                    id: \.self
-                ) { value in
-                    Text(value)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(
-                            Color(
-                                .secondarySystemGroupedBackground
-                            ),
-                            in: Capsule()
-                        )
-                }
+        WrappingDetailFlowLayout(spacing: 6) {
+            ForEach(
+                values,
+                id: \.self
+            ) { value in
+                Text(value)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(
+                        Color(.secondarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    )
             }
         }
-        .scrollClipDisabled()
     }
 
     private var accessPointSummary: String {
@@ -1496,7 +1612,8 @@ struct OrganizationEditorView: View {
             ) {
                 TextField(
                     "Optional",
-                    text: $address
+                    text: $address,
+                    axis: .vertical
                 )
                 .focused(
                     $focusedField,
@@ -1512,7 +1629,8 @@ struct OrganizationEditorView: View {
             ) {
                 TextField(
                     "Optional",
-                    text: $emailAddress
+                    text: $emailAddress,
+                    axis: .vertical
                 )
                 .focused(
                     $focusedField,
@@ -1531,7 +1649,8 @@ struct OrganizationEditorView: View {
             ) {
                 TextField(
                     "Optional",
-                    text: $phoneNumber
+                    text: $phoneNumber,
+                    axis: .vertical
                 )
                 .focused(
                     $focusedField,
@@ -1826,8 +1945,8 @@ struct OrganizationEditorView: View {
 
             Text(value)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
                 .multilineTextAlignment(.trailing)
+                .frame(maxWidth: 210, alignment: .trailing)
 
             Image(systemName: "chevron.up.chevron.down")
                 .font(.caption2.weight(.semibold))

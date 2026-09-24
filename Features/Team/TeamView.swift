@@ -2201,7 +2201,7 @@ private struct TeamMemberPermissionsSection: View {
 
                         Label(
 
-                            "Add organization",
+                            "Add org",
 
                             systemImage: "plus"
 
@@ -3003,7 +3003,7 @@ private enum PermissionFeature:
 
         case .accessPointRecords:
 
-            "Access Point Records"
+            "Activity"
 
         case .appointments:
 
@@ -3043,7 +3043,7 @@ private enum PermissionFeature:
 
         case .accessPointRecordsMedia:
 
-            "Access Point Records Media"
+            "Activity Media"
 
         }
 

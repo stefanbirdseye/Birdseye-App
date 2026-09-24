@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		602F3E1F30470E540011864D /* HelpCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 602F3E1E30470E540011864D /* HelpCenterView.swift */; };
+		606405E030650853006DA08B /* RequestsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 606405DF30650853006DA08B /* RequestsView.swift */; };
 		6098844F303C6952003F5D4D /* AccessActivityViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6098842E303C6952003F5D4D /* AccessActivityViews.swift */; };
 		60988450303C6952003F5D4D /* AccessPointsOperationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6098842F303C6952003F5D4D /* AccessPointsOperationsView.swift */; };
 		60988451303C6952003F5D4D /* AccessPolicyEditorComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60988430303C6952003F5D4D /* AccessPolicyEditorComponents.swift */; };
@@ -26,7 +28,6 @@
 		60988463303C6952003F5D4D /* InventoryOperationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60988443303C6952003F5D4D /* InventoryOperationsView.swift */; };
 		60988464303C6952003F5D4D /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60988444303C6952003F5D4D /* LoginView.swift */; };
 		60988465303C6952003F5D4D /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60988445303C6952003F5D4D /* MainTabView.swift */; };
-		60988467303C6952003F5D4D /* OperationsAssetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60988447303C6952003F5D4D /* OperationsAssetViews.swift */; };
 		60988469303C6952003F5D4D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60988449303C6952003F5D4D /* RootView.swift */; };
 		6098846A303C6952003F5D4D /* SearchActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6098844A303C6952003F5D4D /* SearchActivity.swift */; };
 		6098846B303C6952003F5D4D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6098844B303C6952003F5D4D /* SettingsView.swift */; };
@@ -41,11 +42,14 @@
 		6098848D303EC812003F5D4D /* Snackbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6098848C303EC812003F5D4D /* Snackbar.swift */; };
 		6098848F303F0BCB003F5D4D /* EquipmentCategoryIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6098848E303F0BCB003F5D4D /* EquipmentCategoryIcon.swift */; };
 		60AEC1FE303B377600370260 /* NativeAppleAppEngineering.md in Resources */ = {isa = PBXBuildFile; fileRef = 60AEC1FD303B377500370260 /* NativeAppleAppEngineering.md */; };
+		60E05EF630498E4900FAD917 /* OrganizationPickerField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E05EF530498E4900FAD917 /* OrganizationPickerField.swift */; };
 		60E2BBE0303AC4DC00024C44 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 60E2BBDF303AC4AE00024C44 /* LaunchScreen.storyboard */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		000000000000000000000120 /* Birdseye Portal Native Ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Birdseye Portal Native Ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		602F3E1E30470E540011864D /* HelpCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpCenterView.swift; sourceTree = "<group>"; };
+		606405DF30650853006DA08B /* RequestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestsView.swift; sourceTree = "<group>"; };
 		6098842E303C6952003F5D4D /* AccessActivityViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessActivityViews.swift; sourceTree = "<group>"; };
 		6098842F303C6952003F5D4D /* AccessPointsOperationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessPointsOperationsView.swift; sourceTree = "<group>"; };
 		60988430303C6952003F5D4D /* AccessPolicyEditorComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessPolicyEditorComponents.swift; sourceTree = "<group>"; };
@@ -66,7 +70,6 @@
 		60988443303C6952003F5D4D /* InventoryOperationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryOperationsView.swift; sourceTree = "<group>"; };
 		60988444303C6952003F5D4D /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		60988445303C6952003F5D4D /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
-		60988447303C6952003F5D4D /* OperationsAssetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperationsAssetViews.swift; sourceTree = "<group>"; };
 		60988449303C6952003F5D4D /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		6098844A303C6952003F5D4D /* SearchActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchActivity.swift; sourceTree = "<group>"; };
 		6098844B303C6952003F5D4D /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -80,6 +83,7 @@
 		6098848C303EC812003F5D4D /* Snackbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Snackbar.swift; sourceTree = "<group>"; };
 		6098848E303F0BCB003F5D4D /* EquipmentCategoryIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquipmentCategoryIcon.swift; sourceTree = "<group>"; };
 		60AEC1FD303B377500370260 /* NativeAppleAppEngineering.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = NativeAppleAppEngineering.md; sourceTree = "<group>"; };
+		60E05EF530498E4900FAD917 /* OrganizationPickerField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizationPickerField.swift; sourceTree = "<group>"; };
 		60E2BBDF303AC4AE00024C44 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -110,6 +114,14 @@
 				000000000000000000000120 /* Birdseye Portal Native Ios.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		606405DE30650853006DA08B /* Requests */ = {
+			isa = PBXGroup;
+			children = (
+				606405DF30650853006DA08B /* RequestsView.swift */,
+			);
+			path = Requests;
 			sourceTree = "<group>";
 		};
 		60988476303DC5DB003F5D4D /* App */ = {
@@ -147,6 +159,7 @@
 				60988441303C6952003F5D4D /* GlobalWorkspaceToolbar.swift */,
 				6098848C303EC812003F5D4D /* Snackbar.swift */,
 				6098848E303F0BCB003F5D4D /* EquipmentCategoryIcon.swift */,
+				60E05EF530498E4900FAD917 /* OrganizationPickerField.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -160,6 +173,7 @@
 				6098847D303DC5DC003F5D4D /* Settings */,
 				6098847E303DC5DC003F5D4D /* Auth */,
 				6098847F303DC5DC003F5D4D /* Operations */,
+				606405DE30650853006DA08B /* Requests */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -192,6 +206,7 @@
 			isa = PBXGroup;
 			children = (
 				6098844B303C6952003F5D4D /* SettingsView.swift */,
+				602F3E1E30470E540011864D /* HelpCenterView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -272,7 +287,6 @@
 		60988487303DC5DC003F5D4D /* Assets */ = {
 			isa = PBXGroup;
 			children = (
-				60988447303C6952003F5D4D /* OperationsAssetViews.swift */,
 			);
 			path = Assets;
 			sourceTree = "<group>";
@@ -377,14 +391,16 @@
 				6098845D303C6952003F5D4D /* BrandLogoView.swift in Sources */,
 				6098845E303C6952003F5D4D /* ContentView.swift in Sources */,
 				60988460303C6952003F5D4D /* EquipmentOperationsView.swift in Sources */,
+				606405E030650853006DA08B /* RequestsView.swift in Sources */,
 				60988461303C6952003F5D4D /* GlobalWorkspaceToolbar.swift in Sources */,
 				60988462303C6952003F5D4D /* HomeView.swift in Sources */,
 				60988463303C6952003F5D4D /* InventoryOperationsView.swift in Sources */,
 				6098848D303EC812003F5D4D /* Snackbar.swift in Sources */,
+				602F3E1F30470E540011864D /* HelpCenterView.swift in Sources */,
 				60988464303C6952003F5D4D /* LoginView.swift in Sources */,
 				6098848F303F0BCB003F5D4D /* EquipmentCategoryIcon.swift in Sources */,
+				60E05EF630498E4900FAD917 /* OrganizationPickerField.swift in Sources */,
 				60988465303C6952003F5D4D /* MainTabView.swift in Sources */,
-				60988467303C6952003F5D4D /* OperationsAssetViews.swift in Sources */,
 				60988469303C6952003F5D4D /* RootView.swift in Sources */,
 				6098846A303C6952003F5D4D /* SearchActivity.swift in Sources */,
 				60988475303DB110003F5D4D /* BirdseyeRefresh.swift in Sources */,

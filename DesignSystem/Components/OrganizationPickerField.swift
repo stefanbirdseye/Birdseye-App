@@ -22,7 +22,6 @@ struct OrganizationPickerControl: View {
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 16)
             .frame(maxWidth: .infinity, minHeight: 52)
             .background(
                 Color(.secondarySystemGroupedBackground),
@@ -33,7 +32,7 @@ struct OrganizationPickerControl: View {
         .sheet(isPresented: $isShowingOrganizationPicker) {
             OrganizationSelectionDrawer(selection: $selection)
                 .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
+                .presentationDragIndicator(.hidden)
         }
     }
 }
@@ -48,6 +47,8 @@ private struct OrganizationSelectionDrawer: View {
 
     @FocusState private var isSearchFieldFocused: Bool
 
+    private let locationName = "Northstar (Oshawa)"
+
     private var filteredOrganizations: [OrganizationRecord] {
         let trimmedSearch = searchText.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -55,8 +56,12 @@ private struct OrganizationSelectionDrawer: View {
 
         return OrganizationDirectory.records
             .filter {
-                trimmedSearch.isEmpty
-                    || $0.name.localizedCaseInsensitiveContains(trimmedSearch)
+                ($0.locations.contains(locationName)
+                    || $0.locations.contains("All locations"))
+                    && (
+                        trimmedSearch.isEmpty
+                        || $0.name.localizedCaseInsensitiveContains(trimmedSearch)
+                    )
             }
             .sorted {
                 $0.addedOrder > $1.addedOrder
@@ -72,13 +77,10 @@ private struct OrganizationSelectionDrawer: View {
                         isFocused: $isSearchFieldFocused
                     )
 
-                    Button("Add new organization", systemImage: "plus") {
-                        isShowingAddOrganization = true
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.blue)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
+                    OrganizationPickerResultsHeader(
+                        resultCount: filteredOrganizations.count,
+                        locationName: locationName
+                    )
 
                     if filteredOrganizations.isEmpty {
                         ContentUnavailableView.search(
@@ -87,7 +89,9 @@ private struct OrganizationSelectionDrawer: View {
                         .padding(.top, 48)
                     } else {
                         AuthorizedOrganizationsCard(
-                            organizations: filteredOrganizations
+                            organizations: filteredOrganizations,
+                            selectedOrganizationName: selection,
+                            showsNewBadge: false
                         ) { organization in
                             selection = organization.name
                             dismiss()
@@ -106,6 +110,13 @@ private struct OrganizationSelectionDrawer: View {
                         dismiss()
                     }
                 }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Add new") {
+                        isShowingAddOrganization = true
+                    }
+                    .tint(.primary)
+                }
             }
             .sheet(isPresented: $isShowingAddOrganization) {
                 OrganizationEditorView { newOrganizationName in
@@ -122,6 +133,26 @@ private struct OrganizationSelectionDrawer: View {
     }
 }
 
+private struct OrganizationPickerResultsHeader: View {
+    let resultCount: Int
+    let locationName: String
+
+    var body: some View {
+        HStack {
+            Text("\(resultCount) results")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Text(locationName)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 16)
+    }
+}
+
 private struct OrganizationPickerSearchField: View {
     @Binding var text: String
     @FocusState.Binding var isFocused: Bool
@@ -129,7 +160,7 @@ private struct OrganizationPickerSearchField: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.primary)
 
             TextField("Search organizations", text: $text)
                 .focused($isFocused)
@@ -142,16 +173,16 @@ private struct OrganizationPickerSearchField: View {
                     text = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                 }
                 .accessibilityLabel("Clear search")
             }
         }
         .padding(.horizontal, 14)
-        .frame(minHeight: 44)
+        .frame(minHeight: 38)
         .background(
-            Color(.secondarySystemGroupedBackground),
-            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            Color(.systemGray5),
+            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
         )
         .padding(.horizontal, 16)
     }

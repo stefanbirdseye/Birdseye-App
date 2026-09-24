@@ -29,23 +29,23 @@ struct AIView: View {
         AIExample(
             id: "people",
             category: "People",
-            title: "Authorize these persons to all locations",
-            systemImage: "person.fill",
-            tint: .cyan
+            title: "Authorize a person",
+            systemImage: "person.badge.plus",
+            tint: .blue
         ),
         AIExample(
-            id: "organizations",
-            category: "Organizations",
-            title: "Show organizations with active access",
-            systemImage: "building.2.fill",
-            tint: .green
+            id: "find",
+            category: "Search",
+            title: "Find anything in seconds",
+            systemImage: "magnifyingglass",
+            tint: .blue
         ),
         AIExample(
-            id: "equipment",
-            category: "Equipment",
-            title: "Show authorized equipment at this location",
-            systemImage: "truck.box.fill",
-            tint: .indigo
+            id: "activity",
+            category: "Activity",
+            title: "Ask about today's yard activity",
+            systemImage: "sparkles",
+            tint: .blue
         ),
         AIExample(
             id: "appointments",
@@ -93,23 +93,6 @@ struct AIView: View {
     var body: some View {
         NavigationStack {
             landingContent
-                .toolbar {
-
-                    ToolbarItem(
-                        placement: .topBarTrailing
-                    ) {
-                        Button {
-                            startNewConversation()
-                        } label: {
-                            Image(
-                                systemName: "square.and.pencil"
-                            )
-                        }
-                        .accessibilityLabel(
-                            "New conversation"
-                        )
-                    }
-                }
                 .navigationDestination(
                     isPresented: $isThreadPresented
                 ) {
@@ -144,23 +127,29 @@ struct AIView: View {
                 )
                 .padding(.top, 16)
 
-                Text(
-                    "Ask about people, equipment, organizations, locations, or access events."
-                )
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Tell it what you need, just like typing an email.")
+                        .font(.subheadline.weight(.semibold))
+
+                    Text("Authorize people, update someone's access, or find records in seconds.")
+                }
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-                exampleSection
+                Spacer(minLength: 24)
 
-                historySection
+                exampleSection
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 120)
+            .frame(maxWidth: .infinity, alignment: .top)
         }
         .birdseyeRefreshable()
         .background(
             Color(.systemGroupedBackground)
         )
         .birdseyeMainTabPage()
+        .toolbarBackground(.visible, for: .navigationBar)
     }
 
     // MARK: - Examples
@@ -177,48 +166,16 @@ struct AIView: View {
 
             }
 
-            ScrollView(.horizontal) {
-                LazyHStack(spacing: 12) {
-                    ForEach(examples) { example in
-                        Button {
-                            query = example.title
-                            if example.id == "people" {
-                                onAuthorizationExampleSelected()
-                            }
-                        } label: {
-                            AIExampleCard(
-                                example: example
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .id(example.id)
+            ForEach(examples.prefix(3)) { example in
+                Button {
+                    query = example.title
+                    if example.id == "people" {
+                        onAuthorizationExampleSelected()
                     }
+                } label: {
+                    AIExampleCard(example: example)
                 }
-                .scrollTargetLayout()
-                .padding(.horizontal, 16)
-            }
-            .scrollIndicators(.hidden)
-            .scrollTargetBehavior(
-                .viewAligned(
-                    limitBehavior: .alwaysByOne
-                )
-            )
-            .scrollPosition(
-                id: $exampleScrollID,
-                anchor: .leading
-            )
-            .padding(.horizontal, -16)
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 4)
-                    .onChanged { _ in
-                        isDraggingExamples = true
-                    }
-                    .onEnded { _ in
-                        isDraggingExamples = false
-                    }
-            )
-            .onReceive(exampleAutoScroll) { _ in
-                advanceExamples()
+                .buttonStyle(.plain)
             }
         }
     }
@@ -520,115 +477,177 @@ private struct AIExampleCard: View {
     let example: AIExample
 
     var body: some View {
-        VStack(
-            alignment: .leading,
-            spacing: 0
-        ) {
-            HStack {
-                Image(
-                    systemName:
-                        example.systemImage
-                )
-                .font(
-                    .system(
-                        size: 20,
-                        weight: .semibold
-                    )
-                )
-                .foregroundStyle(.white)
-                .frame(
-                    width: 42,
-                    height: 42
-                )
-                .background(
-                    .white.opacity(0.16),
-                    in: Circle()
-                )
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(example.title)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.blue)
 
-                Spacer()
-
-                Image(
-                    systemName:
-                        "arrow.down.right"
-                )
-                .font(
-                    .subheadline.weight(
-                        .semibold
-                    )
-                )
-                .foregroundStyle(
-                    .white.opacity(0.8)
-                )
+                Text(example.category == "People"
+                    ? "Add a driver, employee, contractor, or visitor to the access list."
+                    : example.category == "Search"
+                    ? "Search drivers, carriers, trailers, or any records."
+                    : "How many bobtail trucks entered the yard today?")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
-            Text(
-                example.category
-                    .uppercased()
-            )
-            .font(
-                .caption2.weight(.bold)
-            )
-            .tracking(0.8)
-            .foregroundStyle(
-                .white.opacity(0.72)
-            )
+            Image(systemName: "sparkles")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.blue)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
 
-            Text(example.title)
-                .font(
-                    .headline.weight(
-                        .semibold
-                    )
-                )
-                .foregroundStyle(.white)
-                .multilineTextAlignment(
-                    .leading
-                )
-                .lineLimit(3)
-                .padding(.top, 5)
+
+private struct AIConversationHistoryView: View {
+    @Binding var conversations: [AIConversation]
+    let onOpen: (AIConversation) -> Void
+    let onDelete: (AIConversation) -> Void
+    let onNewConversation: () -> Void
+
+    @State private var searchText = ""
+    @State private var isSearchPresented = false
+
+    private var matchingConversations: [AIConversation] {
+        let term = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !term.isEmpty else {
+            return conversations
         }
-        .padding(16)
-        .frame(
-            width: 224,
-            height: 154,
-            alignment: .leading
+
+        return conversations.filter {
+            $0.title.localizedCaseInsensitiveContains(term)
+                || $0.preview.localizedCaseInsensitiveContains(term)
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if conversations.isEmpty {
+                ContentUnavailableView(
+                    "No conversations yet",
+                    systemImage: "clock.arrow.circlepath",
+                    description: Text("Your AI conversations will appear here.")
+                )
+            } else if matchingConversations.isEmpty {
+                ContentUnavailableView.search(text: searchText)
+            } else {
+                List {
+                    ForEach(matchingConversations) { conversation in
+                        Button {
+                            onOpen(conversation)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(conversation.title)
+                                    .font(.body.weight(.semibold))
+                                    .lineLimit(1)
+                                Text(conversation.preview)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.primary)
+                        .swipeActions {
+                            Button(role: .destructive) {
+                                onDelete(conversation)
+                            } label: {
+                                Label("Delete conversation", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Conversation history")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    HapticFeedback.lightImpact()
+                    isSearchPresented = true
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                }
+                .tint(.primary)
+                .accessibilityLabel("Search conversations")
+
+                Button {
+                    HapticFeedback.lightImpact()
+                    onNewConversation()
+                } label: {
+                    Image(systemName: "square.and.pencil")
+                }
+                .tint(.primary)
+                .accessibilityLabel("New conversation")
+            }
+        }
+        .conversationHistorySearch(
+            isPresented: $isSearchPresented,
+            text: $searchText
         )
-        .background {
-            RoundedRectangle(
-                cornerRadius: 20,
-                style: .continuous
+    }
+}
+
+
+struct AIConversationHistoryDrawer: View {
+    @Binding var conversations: [AIConversation]
+    let onOpen: (AIConversation) -> Void
+    let onDelete: (AIConversation) -> Void
+    let onNewConversation: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            AIConversationHistoryView(
+                conversations: $conversations,
+                onOpen: onOpen,
+                onDelete: onDelete,
+                onNewConversation: onNewConversation
             )
-            .fill(
-                LinearGradient(
-                    colors: [
-                        example.tint,
-                        example.tint
-                            .opacity(0.72)
-                    ],
-                    startPoint:
-                        .topLeading,
-                    endPoint:
-                        .bottomTrailing
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark")
+                    }
+                    .tint(.primary)
+                    .accessibilityLabel("Close conversation history")
+                }
+            }
+        }
+        .background(Color(.systemGroupedBackground))
+        .ignoresSafeArea()
+    }
+}
+
+
+private extension View {
+    @ViewBuilder
+    func conversationHistorySearch(
+        isPresented: Binding<Bool>,
+        text: Binding<String>
+    ) -> some View {
+        if isPresented.wrappedValue {
+            self
+                .reportingSearchActivity()
+                .searchable(
+                    text: text,
+                    isPresented: isPresented,
+                    placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: "Search conversations"
                 )
-            )
+        } else {
+            self
         }
-        .overlay {
-            RoundedRectangle(
-                cornerRadius: 20,
-                style: .continuous
-            )
-            .stroke(
-                .white.opacity(0.15),
-                lineWidth: 1
-            )
-        }
-        .shadow(
-            color:
-                example.tint.opacity(0.14),
-            radius: 10,
-            y: 5
-        )
     }
 }
 

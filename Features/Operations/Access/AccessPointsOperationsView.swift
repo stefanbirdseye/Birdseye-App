@@ -8,14 +8,34 @@ struct AccessPointsOperationsView: View {
     @State private var searchText = ""
     @State private var isSearchPresented = false
     @State private var showOfflineOnly = false
+    @State private var sortOrder: AccessPointSortOrder = .nameAscending
     @State private var page = 0
     @State private var showingEditor = false
     @State private var selectedPoint: AccessPointRecord?
 
     private var filteredPoints: [AccessPointRecord] {
-        accessPoints.filter {
+        let matchingPoints = accessPoints.filter {
             (searchText.isEmpty || $0.name.localizedCaseInsensitiveContains(searchText) || $0.type.localizedCaseInsensitiveContains(searchText))
                 && (!showOfflineOnly || $0.status == "Offline")
+        }
+
+        switch sortOrder {
+        case .nameAscending:
+            return matchingPoints.sorted {
+                $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+        case .nameDescending:
+            return matchingPoints.sorted {
+                $0.name.localizedStandardCompare($1.name) == .orderedDescending
+            }
+        case .type:
+            return matchingPoints.sorted {
+                $0.type.localizedStandardCompare($1.type) == .orderedAscending
+            }
+        case .status:
+            return matchingPoints.sorted {
+                $0.status.localizedStandardCompare($1.status) == .orderedAscending
+            }
         }
     }
 
@@ -50,10 +70,57 @@ struct AccessPointsOperationsView: View {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button { isSearchPresented = true } label: { Image(systemName: "magnifyingglass") }
                 Menu {
-                    Toggle("Offline only", isOn: $showOfflineOnly)
-                    Button("Reset filters") { searchText = ""; showOfflineOnly = false; page = 0 }
-                } label: { Image(systemName: "line.3.horizontal.decrease.circle") }
-                Menu { Button("Sort by name") { }; Button("Export list") { } } label: { Image(systemName: "ellipsis") }
+                    Menu("Sort", systemImage: "arrow.up.arrow.down") {
+                        ForEach(AccessPointSortOrder.allCases) { order in
+                            Button {
+                                sortOrder = order
+                                page = 0
+                            } label: {
+                                if sortOrder == order {
+                                    Label(order.title, systemImage: "checkmark")
+                                } else {
+                                    Text(order.title)
+                                }
+                            }
+                        }
+
+                        Divider()
+
+                        Button("Reset to default") {
+                            sortOrder = .nameAscending
+                            page = 0
+                        }
+                    }
+
+                    Menu("Filter", systemImage: "line.3.horizontal.decrease.circle") {
+                        Toggle("Offline only", isOn: $showOfflineOnly)
+
+                        Divider()
+
+                        Button("Reset to default") {
+                            showOfflineOnly = false
+                            page = 0
+                        }
+                    }
+
+                    if showOfflineOnly || sortOrder != .nameAscending {
+                        Button("Reset view") {
+                            showOfflineOnly = false
+                            sortOrder = .nameAscending
+                            page = 0
+                        }
+                    }
+
+                    Section("Actions") {
+                        Button {
+                            // Export action
+                        } label: {
+                            Label("Export list", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                } label: {
+                    Image(systemName: showOfflineOnly || sortOrder != .nameAscending ? "ellipsis.circle.fill" : "ellipsis")
+                }
                 Button { showingEditor = true } label: { Image(systemName: "plus") }
             }
         }
@@ -64,6 +131,28 @@ struct AccessPointsOperationsView: View {
         .onChange(of: showOfflineOnly) { _, _ in page = 0 }
         .sheet(isPresented: $showingEditor) { AccessPointEditorView() }
         .sheet(item: $selectedPoint) { AccessPointEditorView(point: $0) }
+    }
+}
+
+private enum AccessPointSortOrder: String, CaseIterable, Identifiable {
+    case nameAscending
+    case nameDescending
+    case type
+    case status
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .nameAscending:
+            return "Name A-Z"
+        case .nameDescending:
+            return "Name Z-A"
+        case .type:
+            return "Type"
+        case .status:
+            return "Status"
+        }
     }
 }
 

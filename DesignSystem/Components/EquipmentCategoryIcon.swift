@@ -5,14 +5,7 @@ struct EquipmentCategoryIcon: View {
     var tint: Color = .primary
 
     private var systemImage: String {
-        switch category {
-        case "Car":
-            return "car.side"
-        case "Bobtail", "Straight truck", "Truck":
-            return "truck.box"
-        default:
-            return "shippingbox"
-        }
+        "tire"
     }
 
     var body: some View {

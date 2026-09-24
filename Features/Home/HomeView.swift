@@ -599,7 +599,6 @@ private struct OnboardingTaskRow: View {
             }
             .padding(.vertical, 8)
 
-[File truncated: 754 more lines available. Use 'offset' and 'limit' parameters to read more content.]
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
@@ -1201,7 +1200,6 @@ private struct InventorySummaryCard: View {
                 Spacer(minLength: 8)
 
 
-[File truncated: 154 more lines available. Use 'offset' and 'limit' parameters to read more content.]
                 NavigationLink {
                     InventoryOperationsView()
                 } label: {

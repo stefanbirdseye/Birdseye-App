@@ -1,10 +1,55 @@
 import SwiftUI
+import TipKit
 import PhotosUI
 import UniformTypeIdentifiers
 import UIKit
 
+private enum PersonTutorialStep: Equatable {
+  case addPerson
+  case requiredFields
+  case accessPolicy
+  case none
+}
+
+private struct AddPersonTutorialTip: Tip {
+  var title: Text { Text("Add your first person") }
+  var message: Text? { Text("Tap + to create a person and set up their access.") }
+  var image: Image? { Image(systemName: "plus.circle.fill") }
+}
+
+private struct RequiredPersonFieldTip: Tip {
+  let titleText: String
+  let messageText: String
+
+  var title: Text { Text(titleText) }
+  var message: Text? { Text(messageText) }
+  var image: Image? { Image(systemName: "asterisk.circle.fill") }
+
+  var actions: [Action] {
+    Action(id: "next-step", title: "Next step")
+  }
+}
+
+private struct AccessPolicyTutorialTip: Tip {
+  var title: Text { Text("3. Choose their access") }
+  var message: Text? { Text("Select where this driver will be authorized.") }
+  var image: Image? { Image(systemName: "mappin.and.ellipse") }
+
+  var actions: [Action] {
+    Action(id: "next-step", title: "Next step")
+  }
+}
+
 struct AuthorizedPeopleOperationsView: View {
+  let startsPersonTutorial: Bool
+
   @Environment(SnackbarCenter.self) private var snackbarCenter
+  @State private var tutorialStep: PersonTutorialStep
+
+  init(startsPersonTutorial: Bool = false) {
+    self.startsPersonTutorial = startsPersonTutorial
+    _tutorialStep = State(initialValue: startsPersonTutorial ? .addPerson : .none)
+  }
 
   @State private var people: [AuthorizedPeopleDirectoryEntry] = (1...100).map { index in
     let names = [
@@ -96,6 +141,14 @@ struct AuthorizedPeopleOperationsView: View {
   @State private var selectedPerson: ExistingPerson?
   @State private var sortOrder: PeopleSortOrder = .recentlyAdded
   private let pageSize = 20
+
+  private func tutorialPresentation(for step: PersonTutorialStep) -> Binding<Bool> {
+    Binding(
+      get: { tutorialStep == step },
+      set: { _ in }
+    )
+  }
+
   private var cleanSearch: String {
     searchText.trimmingCharacters(
       in: .whitespacesAndNewlines
@@ -123,10 +176,6 @@ struct AuthorizedPeopleOperationsView: View {
       switch peopleFilter {
       case .all:
         matchesFilter = true
-      case .activeOnly:
-        matchesFilter = entry.isActive
-      case .inactiveOnly:
-        matchesFilter = !entry.isActive
       case .bannedOnly:
         matchesFilter = entry.accessType == "Banned Access"
       case .defaultOnly:
@@ -219,6 +268,15 @@ struct AuthorizedPeopleOperationsView: View {
         selectedLocationIndex: $selectedLocationIndex,
         page: page,
         pageSize: pageSize,
+        hasActiveSortOrFilter: peopleFilter != .all
+          || selectedLocationIndex != 1
+          || sortOrder != .recentlyAdded,
+        onResetSortAndFilters: {
+          peopleFilter = .all
+          selectedLocationIndex = 1
+          sortOrder = .recentlyAdded
+          page = 0
+        },
         onSelect: { entry in
           selectedPerson = entry.person
         },
@@ -250,7 +308,7 @@ struct AuthorizedPeopleOperationsView: View {
         .tint(.primary)
         .accessibilityLabel("Search")
         Menu {
-          Section("Sort") {
+          Menu("Sort", systemImage: "arrow.up.arrow.down") {
             ForEach(PeopleSortOrder.allCases) { order in
               Button {
                 sortOrder = order
@@ -262,15 +320,19 @@ struct AuthorizedPeopleOperationsView: View {
                     systemImage: "checkmark"
                   )
                 } else {
-                  Label(
-                    order.title,
-                    systemImage: order.systemImage
-                  )
+                  Text(order.title)
                 }
               }
             }
+
+            Divider()
+
+            Button("Reset to default") {
+              sortOrder = .recentlyAdded
+              page = 0
+            }
           }
-          Section("Filter") {
+          Menu("Filter", systemImage: "line.3.horizontal.decrease.circle") {
             ForEach(PeopleFilter.allCases) { filter in
               Button {
                 peopleFilter = filter
@@ -282,12 +344,16 @@ struct AuthorizedPeopleOperationsView: View {
                     systemImage: "checkmark"
                   )
                 } else {
-                  Label(
-                    filter.title,
-                    systemImage: filter.systemImage
-                  )
+                  Text(filter.title)
                 }
               }
+            }
+
+            Divider()
+
+            Button("Reset to default") {
+              peopleFilter = .all
+              page = 0
             }
           }
           Section("Actions") {
@@ -299,32 +365,23 @@ struct AuthorizedPeopleOperationsView: View {
                 systemImage: "square.and.arrow.up"
               )
             }
-            if peopleFilter != .all
-              || !searchText.isEmpty
-              || selectedLocationIndex != 1
-              || sortOrder != .recentlyAdded
-            {
-              Button {
-                peopleFilter = .all
-                searchText = ""
-                selectedLocationIndex = 1
-                sortOrder = .recentlyAdded
-                page = 0
-              } label: {
-                Label(
-                  "Reset view",
-                  systemImage: "arrow.counterclockwise"
-                )
-              }
-            }
           }
         } label: {
-          Image(systemName: "ellipsis")
+          Image(
+            systemName: peopleFilter != .all
+              || selectedLocationIndex != 1
+              || sortOrder != .recentlyAdded
+              ? "ellipsis.circle.fill"
+              : "ellipsis"
+          )
         }
         .tint(.primary)
         .accessibilityLabel("Sort, filter, and more")
         Button {
           HapticFeedback.lightImpact()
+          if tutorialStep == .addPerson {
+            tutorialStep = .requiredFields
+          }
           showingAdd = true
         } label: {
           Image(systemName: "plus")
@@ -352,7 +409,15 @@ struct AuthorizedPeopleOperationsView: View {
       page = 0
     }
     .sheet(isPresented: $showingAdd) {
-      AddPersonAuthorizationView { person, policy in
+      AddPersonAuthorizationView(
+        isPersonTutorialActive: tutorialStep != .none,
+        onCancelTutorial: {
+          tutorialStep = .none
+        },
+        onOpenAccessPolicy: {
+          tutorialStep = .accessPolicy
+        }
+      ) { person, policy in
         let entry = AuthorizedPeopleDirectoryEntry(
           person: person,
           locations: policy.locations == "All locations"
@@ -389,8 +454,25 @@ struct AuthorizedPeopleOperationsView: View {
     .sheet(item: $selectedPerson) { person in
       EditPersonAuthorizationView(
         person: person,
+        isAuthorizationActive: people.first(where: { $0.id == person.id })?.isActive ?? true,
         onSave: {
           snackbarCenter.show("Authorization updated for \(person.fullName).")
+        },
+        onRemoveAuthorization: {
+          guard let index = people.firstIndex(where: { $0.id == person.id }) else {
+            return
+          }
+
+          people[index].isActive = false
+          snackbarCenter.show("Authorization removed for \(person.fullName).")
+        },
+        onAccessPolicyAdded: {
+          guard let index = people.firstIndex(where: { $0.id == person.id }) else {
+            return
+          }
+
+          people[index].isActive = true
+          snackbarCenter.show("Authorization restored for \(person.fullName).")
         }
       )
     }
@@ -451,8 +533,6 @@ private enum PeopleSortOrder: String, CaseIterable, Identifiable {
 // MARK: - Filtering
 private enum PeopleFilter: String, CaseIterable, Identifiable {
   case all
-  case activeOnly
-  case inactiveOnly
   case bannedOnly
   case defaultOnly
   case priorityOnly
@@ -466,10 +546,6 @@ private enum PeopleFilter: String, CaseIterable, Identifiable {
     switch self {
     case .all:
       return "All people"
-    case .activeOnly:
-      return "Active only"
-    case .inactiveOnly:
-      return "Inactive only"
     case .bannedOnly:
       return "Banned only"
     case .defaultOnly:
@@ -492,10 +568,6 @@ private enum PeopleFilter: String, CaseIterable, Identifiable {
     switch self {
     case .all:
       return "person.2"
-    case .activeOnly:
-      return "checkmark.circle"
-    case .inactiveOnly:
-      return "pause.circle"
     case .bannedOnly:
       return "nosign"
     case .defaultOnly:
@@ -523,7 +595,7 @@ private struct AuthorizedPeopleDirectoryEntry: Identifiable {
   let periodAccess: String
   let hasNote: Bool
   let isLimitedTime: Bool
-  let isActive: Bool
+  var isActive: Bool
   let addedOrder: Int
   let isNewThisWeek: Bool
   var id: UUID {
@@ -538,6 +610,8 @@ private struct AuthorizedPeopleResultsContent: View {
   @Binding var selectedLocationIndex: Int
   let page: Int
   let pageSize: Int
+  let hasActiveSortOrFilter: Bool
+  let onResetSortAndFilters: () -> Void
   let onSelect: (AuthorizedPeopleDirectoryEntry) -> Void
   let onPrevious: () -> Void
   let onNext: () -> Void
@@ -549,6 +623,13 @@ private struct AuthorizedPeopleResultsContent: View {
             .font(.subheadline.weight(.medium))
             .foregroundStyle(.secondary)
             .monospacedDigit()
+          if hasActiveSortOrFilter {
+            Button("Reset view") {
+              onResetSortAndFilters()
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.blue)
+          }
           Spacer()
           DirectoryLocationSwitcher(
             locations: locations,
@@ -795,14 +876,16 @@ private struct AuthorizedPersonRow: View {
       metadataSeparator
 
       LocationAccessLabel(
-        locations: entry.locations
+        locations: entry.locations,
+        isAuthorized: entry.isActive
       )
 
       DirectoryAccessTypeChip(
-        accessType: entry.accessType,
-        periodAccess: entry.periodAccess,
-        hasNote: entry.hasNote,
-        isLimitedTime: entry.isLimitedTime
+        accessType: entry.isActive ? entry.accessType : "Default Access",
+        periodAccess: entry.isActive ? entry.periodAccess : "Ongoing",
+        hasNote: entry.isActive && entry.hasNote,
+        isLimitedTime: entry.isActive && entry.isLimitedTime,
+        isVisible: entry.isActive
       )
     }
     .font(.subheadline)
@@ -837,14 +920,16 @@ private struct AuthorizedPersonRow: View {
     ViewThatFits(in: .horizontal) {
       HStack(spacing: 8) {
         LocationAccessLabel(
-          locations: entry.locations
+          locations: entry.locations,
+          isAuthorized: entry.isActive
         )
 
         DirectoryAccessTypeChip(
-          accessType: entry.accessType,
-          periodAccess: entry.periodAccess,
-          hasNote: entry.hasNote,
-          isLimitedTime: entry.isLimitedTime
+          accessType: entry.isActive ? entry.accessType : "Default Access",
+          periodAccess: entry.isActive ? entry.periodAccess : "Ongoing",
+          hasNote: entry.isActive && entry.hasNote,
+          isLimitedTime: entry.isActive && entry.isLimitedTime,
+          isVisible: entry.isActive
         )
       }
       .fixedSize(
@@ -857,14 +942,16 @@ private struct AuthorizedPersonRow: View {
         spacing: 5
       ) {
         LocationAccessLabel(
-          locations: entry.locations
+          locations: entry.locations,
+          isAuthorized: entry.isActive
         )
 
         DirectoryAccessTypeChip(
-          accessType: entry.accessType,
-          periodAccess: entry.periodAccess,
-          hasNote: entry.hasNote,
-          isLimitedTime: entry.isLimitedTime
+          accessType: entry.isActive ? entry.accessType : "Default Access",
+          periodAccess: entry.isActive ? entry.periodAccess : "Ongoing",
+          hasNote: entry.isActive && entry.hasNote,
+          isLimitedTime: entry.isActive && entry.isLimitedTime,
+          isVisible: entry.isActive
         )
       }
     }
@@ -881,16 +968,15 @@ private struct AuthorizedPersonRow: View {
 
 private struct LocationAccessLabel: View {
   let locations: [String]
+  let isAuthorized: Bool
 
   private var label: String {
-    locations.joined(
-      separator: " · "
-    )
+    isAuthorized ? locations.joined(separator: " · ") : "No access defined"
   }
 
   var body: some View {
     HStack(spacing: 5) {
-      Image(systemName: "mappin.and.ellipse")
+      Image(systemName: isAuthorized ? "mappin.and.ellipse" : "nosign")
         .font(.subheadline.weight(.medium))
 
       Text(label)
@@ -899,7 +985,7 @@ private struct LocationAccessLabel: View {
         .truncationMode(.tail)
     }
     .foregroundStyle(.secondary)
-    .accessibilityLabel("Authorized locations")
+    .accessibilityLabel(isAuthorized ? "Authorized locations" : "Access status")
     .accessibilityValue(label)
   }
 }
@@ -912,6 +998,7 @@ private struct DirectoryAccessTypeChip: View {
   let periodAccess: String
   let hasNote: Bool
   let isLimitedTime: Bool
+  let isVisible: Bool
 
   private var tint: Color {
     switch accessType {
@@ -927,8 +1014,9 @@ private struct DirectoryAccessTypeChip: View {
   }
 
   var body: some View {
-    HStack(spacing: 5) {
-      Text(accessType)
+    if isVisible {
+      HStack(spacing: 5) {
+        Text(accessType)
         .font(.caption2.weight(.semibold))
 
       if periodAccess == "One-time" {
@@ -961,6 +1049,7 @@ private struct DirectoryAccessTypeChip: View {
       vertical: false
     )
     .accessibilityElement(children: .combine)
+    }
   }
 }
 
@@ -1071,12 +1160,35 @@ struct DirectoryPaginationFooter: View {
 
 struct AddPersonAuthorizationView: View {
 
-    var onSave: (ExistingPerson, AccessPolicy) -> Void = { _, _ in }
+    let isPersonTutorialActive: Bool
+    let onCancelTutorial: () -> Void
+    let onOpenAccessPolicy: () -> Void
+    let onCompleteTutorial: () -> Void
+    var onSave: (ExistingPerson, AccessPolicy) -> Void
+
+    init(
+        isPersonTutorialActive: Bool = false,
+        onCancelTutorial: @escaping () -> Void = {},
+        onOpenAccessPolicy: @escaping () -> Void = {},
+        onCompleteTutorial: @escaping () -> Void = {},
+        onSave: @escaping (ExistingPerson, AccessPolicy) -> Void = { _, _ in }
+    ) {
+        self.isPersonTutorialActive = isPersonTutorialActive
+        self.onCancelTutorial = onCancelTutorial
+        self.onOpenAccessPolicy = onOpenAccessPolicy
+        self.onCompleteTutorial = onCompleteTutorial
+        self.onSave = onSave
+        _tutorialRequiredField = State(initialValue: isPersonTutorialActive ? .fullName : nil)
+    }
 
     private enum QuickScanState {
         case empty
         case scanning
         case success
+    }
+
+    private enum TutorialRequiredField: Equatable {
+        case fullName
     }
 
     @Environment(\.dismiss)
@@ -1125,6 +1237,8 @@ struct AddPersonAuthorizationView: View {
     @FocusState
 
     private var focusedField: Field?
+
+    @State private var tutorialRequiredField: TutorialRequiredField?
 
     private enum Field {
 
@@ -1318,7 +1432,7 @@ struct AddPersonAuthorizationView: View {
 
     private var filteredPeople: [ExistingPerson] {
 
-        guard !cleanFullName.isEmpty else {
+        guard cleanFullName.count >= 3 else {
 
             return []
 
@@ -1358,7 +1472,8 @@ struct AddPersonAuthorizationView: View {
 
         focusedField == .fullName &&
 
-        !cleanFullName.isEmpty &&
+        cleanFullName.count >= 3 &&
+        !filteredPeople.isEmpty &&
 
         selectedExistingPerson == nil
 
@@ -1366,21 +1481,50 @@ struct AddPersonAuthorizationView: View {
 
 
 
+    private func requiredFieldTipPresentation(
+        for field: TutorialRequiredField
+    ) -> Binding<Bool> {
+        Binding(
+            get: { isPersonTutorialActive && tutorialRequiredField == field },
+            set: { isPresented in
+                if !isPresented {
+                    tutorialRequiredField = nil
+                    onCancelTutorial()
+                }
+            }
+        )
+    }
+
+    private var accessPolicyTipPresentation: Binding<Bool> {
+        Binding(
+            get: { isPersonTutorialActive && tutorialRequiredField == nil },
+            set: { isPresented in
+                if !isPresented {
+                    onCancelTutorial()
+                }
+            }
+        )
+    }
+
+    private func advanceRequiredFieldTutorial() {
+        guard tutorialRequiredField == .fullName else { return }
+        tutorialRequiredField = nil
+        focusedField = nil
+    }
+
+    private func openAccessPolicy() {
+        focusedField = nil
+        if isPersonTutorialActive {
+            onOpenAccessPolicy()
+        }
+        showingAccessPolicy = true
+    }
+
     // MARK: Validation
 
     private var canSave: Bool {
 
-        !cleanFullName.isEmpty &&
-
-        !organization
-
-            .trimmingCharacters(
-
-                in: .whitespacesAndNewlines
-
-            )
-
-            .isEmpty
+        !cleanFullName.isEmpty
 
     }
 
@@ -1404,6 +1548,22 @@ struct AddPersonAuthorizationView: View {
 
                 ) {
 
+                    if tutorialRequiredField == .fullName {
+                        TipView(
+                            RequiredPersonFieldTip(
+                                titleText: "2. Add their full name",
+                                messageText: "The only required field is the full name. Add the details you need after that."
+                            ),
+                            isPresented: requiredFieldTipPresentation(for: .fullName),
+                            arrowEdge: .bottom
+                        ) { action in
+                            guard action.id == "next-step" else { return }
+                            advanceRequiredFieldTutorial()
+                        }
+                        .tint(.blue)
+                        .backgroundStyle(Color.white)
+                    }
+
                     fullNameField
 
                     organizationField
@@ -1411,6 +1571,19 @@ struct AddPersonAuthorizationView: View {
                     cdlField
 
                     moreDetailsArea
+
+                    if isPersonTutorialActive && tutorialRequiredField == nil {
+                        TipView(
+                            AccessPolicyTutorialTip(),
+                            isPresented: accessPolicyTipPresentation,
+                            arrowEdge: .bottom
+                        ) { action in
+                            guard action.id == "next-step" else { return }
+                            openAccessPolicy()
+                        }
+                        .tint(.blue)
+                        .backgroundStyle(Color.white)
+                    }
 
                     accessPolicyArea
 
@@ -1465,6 +1638,14 @@ struct AddPersonAuthorizationView: View {
                 .inline
 
             )
+            .task {
+                guard isPersonTutorialActive else { return }
+                await RequiredPersonFieldTip(
+                    titleText: "2. Add their full name",
+                    messageText: "The only required field is the full name. Add the details you need after that."
+                ).resetEligibility()
+                await AccessPolicyTutorialTip().resetEligibility()
+            }
 
             .toolbar {
 
@@ -1585,7 +1766,10 @@ struct AddPersonAuthorizationView: View {
 
                 AccessPolicyEditorView(
 
-                    policy: accessPolicy
+                    policy: accessPolicy,
+                    isPersonTutorialActive: isPersonTutorialActive,
+                    onCancelTutorial: onCancelTutorial,
+                    onCompleteTutorial: onCompleteTutorial
 
                 ) { updatedPolicy in
 
@@ -1729,6 +1913,17 @@ struct AddPersonAuthorizationView: View {
 
                 .submitLabel(.next)
 
+                .onChange(of: fullName) { _, newValue in
+                    guard
+                        tutorialRequiredField == .fullName,
+                        !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    else {
+                        return
+                    }
+
+                    advanceRequiredFieldTutorial()
+                }
+
                 .padding(.horizontal, 16)
 
                 .frame(
@@ -1803,48 +1998,13 @@ struct AddPersonAuthorizationView: View {
 
             title: "Organization name",
 
-            required: true
+            required: false
 
         ) {
 
-            TextField(
-
-                "Enter organization name",
-
-                text: $organization
-
-            )
-
-            .focused(
-
-                $focusedField,
-
-                equals: .organization
-
-            )
-
-            .textContentType(
-
-                .organizationName
-
-            )
-
-            .textInputAutocapitalization(
-
-                .words
-
-            )
-
-            .submitLabel(.next)
-
-            .onSubmit {
-
-                focusedField = .cdl
-
-            }
+            OrganizationPickerControl(selection: $organization)
 
         }
-
     }
 
 
@@ -1903,35 +2063,29 @@ struct AddPersonAuthorizationView: View {
 
     private var existingPeopleSuggestions: some View {
 
-        if filteredPeople.isEmpty {
+        VStack(spacing: 0) {
 
-            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
 
-                Image(
+                    Text("Person may already exist (\(filteredPeople.count))")
 
-                    systemName: "magnifyingglass"
+                            .font(.subheadline)
 
-                )
+                            .foregroundStyle(.orange)
 
-                .foregroundStyle(.secondary)
+                        Text("Edit them instead of creating a duplicate.")
 
-                Text("No existing people found")
+                            .font(.caption)
 
-                    .font(.subheadline)
+                            .foregroundStyle(.secondary)
 
-                    .foregroundStyle(.secondary)
+                }
 
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            }
+                .padding(.horizontal, 16)
 
-            .padding(.horizontal, 16)
-
-            .frame(minHeight: 52)
-
-        } else {
-
-            VStack(spacing: 0) {
+                .padding(.vertical, 10)
 
                 ForEach(
 
@@ -2007,6 +2161,12 @@ struct AddPersonAuthorizationView: View {
 
                             Spacer()
 
+                            Text("Edit")
+
+                                .font(.body)
+
+                                .foregroundStyle(.tertiary)
+
                             Image(
 
                                 systemName: "chevron.right"
@@ -2042,8 +2202,6 @@ struct AddPersonAuthorizationView: View {
                     }
 
                 }
-
-            }
 
         }
 
@@ -2187,7 +2345,9 @@ struct AddPersonAuthorizationView: View {
 
                     "Optional",
 
-                    text: $phoneNumber
+                    text: $phoneNumber,
+
+                    axis: .vertical
 
                 )
 
@@ -2221,7 +2381,9 @@ struct AddPersonAuthorizationView: View {
 
                     "Optional",
 
-                    text: $emailAddress
+                    text: $emailAddress,
+
+                    axis: .vertical
 
                 )
 
@@ -2299,7 +2461,9 @@ struct AddPersonAuthorizationView: View {
 
                     "Optional",
 
-                    text: $dlNumber
+                    text: $dlNumber,
+
+                    axis: .vertical
 
                 )
 
@@ -2381,9 +2545,7 @@ struct AddPersonAuthorizationView: View {
 
         Button {
 
-            focusedField = nil
-
-            showingAccessPolicy = true
+            openAccessPolicy()
 
         } label: {
 
@@ -2488,6 +2650,12 @@ struct AddPersonAuthorizationView: View {
         }
 
         .buttonStyle(.plain)
+        .overlay {
+            if isPersonTutorialActive && tutorialRequiredField == nil {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(.blue, lineWidth: 3)
+            }
+        }
 
     }
 
@@ -2736,6 +2904,10 @@ struct AddPersonAuthorizationView: View {
                 Text(value)
 
                     .foregroundStyle(.blue)
+
+                    .multilineTextAlignment(.trailing)
+
+                    .frame(maxWidth: 180, alignment: .trailing)
 
                 Image(
 
@@ -3024,7 +3196,10 @@ struct EditPersonAuthorizationView: View {
     private var dismiss
 
     let person: ExistingPerson
+    @State private var isAuthorizationActive: Bool
     let onSave: () -> Void
+    let onRemoveAuthorization: () -> Void
+    let onAccessPolicyAdded: () -> Void
 
     @State private var fullName: String
     @State private var organization: String
@@ -3044,6 +3219,7 @@ struct EditPersonAuthorizationView: View {
     @State private var showingDatePicker = false
     @State private var showingAccessPolicy = false
     @State private var showingCDLConfirmation = false
+    @State private var showingRemoveAuthorizationConfirmation = false
 
     @FocusState
     private var focusedField: Field?
@@ -3078,11 +3254,17 @@ struct EditPersonAuthorizationView: View {
 
     init(
         person: ExistingPerson,
-        onSave: @escaping () -> Void = {}
+        isAuthorizationActive: Bool = true,
+        onSave: @escaping () -> Void = {},
+        onRemoveAuthorization: @escaping () -> Void = {},
+        onAccessPolicyAdded: @escaping () -> Void = {}
     ) {
 
         self.person = person
+        _isAuthorizationActive = State(initialValue: isAuthorizationActive)
         self.onSave = onSave
+        self.onRemoveAuthorization = onRemoveAuthorization
+        self.onAccessPolicyAdded = onAccessPolicyAdded
 
         _fullName = State(
             initialValue: person.fullName
@@ -3170,6 +3352,8 @@ struct EditPersonAuthorizationView: View {
                     accessPolicyArea
 
                     updateDetails
+
+                    removeAuthorizationButton
                 }
                 .listRowInsets(
                     EdgeInsets(
@@ -3232,6 +3416,19 @@ struct EditPersonAuthorizationView: View {
             } message: {
                 Text("Adding a CDL number helps us verify the driver's identity.\nAre you sure you want to continue without one?")
             }
+            .alert(
+                "Remove authorization?",
+                isPresented: $showingRemoveAuthorizationConfirmation
+            ) {
+                Button("Remove authorization", role: .destructive) {
+                    focusedField = nil
+                    onRemoveAuthorization()
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will not delete \(person.fullName). They will be marked inactive and will no longer have access. Their name will remain in the system for previous records and history. To give them access again later, add a new access policy for this person.")
+            }
             .sheet(
                 isPresented: $showingDatePicker
             ) {
@@ -3242,11 +3439,16 @@ struct EditPersonAuthorizationView: View {
             ) {
 
                 AccessPolicyEditorView(
-                    policy: accessPolicy
-                ) { updatedPolicy in
+                    policy: accessPolicy,
+                    onSave: { updatedPolicy in
 
                     accessPolicy = updatedPolicy
-                }
+                    if !isAuthorizationActive {
+                        isAuthorizationActive = true
+                        onAccessPolicyAdded()
+                    }
+                    }
+                )
             }
         }
     }
@@ -3264,6 +3466,24 @@ struct EditPersonAuthorizationView: View {
         .foregroundStyle(.secondary)
         .padding(.horizontal, 16)
         .padding(.top, 4)
+    }
+
+    private var removeAuthorizationButton: some View {
+        Button(role: .destructive) {
+            focusedField = nil
+            showingRemoveAuthorizationConfirmation = true
+        } label: {
+            Text("Remove authorization")
+                .font(.caption.weight(.medium))
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .disabled(!isAuthorizationActive)
+        .accessibilityHint(
+            isAuthorizationActive
+            ? "Marks this person inactive and removes their access."
+            : "Authorization has already been removed."
+        )
     }
 
     private var fullNameField: some View {
@@ -3296,18 +3516,7 @@ struct EditPersonAuthorizationView: View {
             required: true
         ) {
 
-            TextField(
-                "Enter organization name",
-                text: $organization
-            )
-            .focused(
-                $focusedField,
-                equals: .organization
-            )
-            .submitLabel(.next)
-            .onSubmit {
-                focusedField = .cdl
-            }
+            OrganizationPickerControl(selection: $organization)
         }
     }
 
@@ -3409,7 +3618,8 @@ struct EditPersonAuthorizationView: View {
 
                 TextField(
                     "Optional",
-                    text: $phoneNumber
+                    text: $phoneNumber,
+                    axis: .vertical
                 )
                 .focused(
                     $focusedField,
@@ -3429,7 +3639,8 @@ struct EditPersonAuthorizationView: View {
 
                 TextField(
                     "Optional",
-                    text: $emailAddress
+                    text: $emailAddress,
+                    axis: .vertical
                 )
                 .focused(
                     $focusedField,
@@ -3474,7 +3685,8 @@ struct EditPersonAuthorizationView: View {
 
                 TextField(
                     "Optional",
-                    text: $dlNumber
+                    text: $dlNumber,
+                    axis: .vertical
                 )
                 .focused(
                     $focusedField,
@@ -3493,7 +3705,8 @@ struct EditPersonAuthorizationView: View {
 
                 TextField(
                     "Optional",
-                    text: $companyCardNumber
+                    text: $companyCardNumber,
+                    axis: .vertical
                 )
                 .focused(
                     $focusedField,
@@ -3527,41 +3740,49 @@ struct EditPersonAuthorizationView: View {
                 alignment: .leading,
                 spacing: 12
             ) {
-                HStack {
-                    Text("Access policy")
+                if isAuthorizationActive {
+                    HStack {
+                        Text("Access policy")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.blue)
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+
+                    HStack(spacing: 8) {
+                        Label(
+                            accessPolicy.locations,
+                            systemImage: "mappin.and.ellipse"
+                        )
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                        Spacer(minLength: 6)
+
+                        AccessTypeChip(
+                            accessType: accessPolicy.accessType,
+                            periodAccess: accessPolicy.periodAccess,
+                            hasNote: !accessPolicy.note
+                                .trimmingCharacters(
+                                    in: .whitespacesAndNewlines
+                                )
+                                .isEmpty,
+                            isLimitedTime: accessPolicy.limitedTimeAccess
+                        )
+                    }
+                } else {
+                    Text("No access is currently defined for this person. Add an access policy to restore their authorization.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    Label("Add access policy", systemImage: "plus")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.blue)
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                }
-
-                HStack(spacing: 8) {
-                    Label(
-                        accessPolicy.locations,
-                        systemImage: "mappin.and.ellipse"
-                    )
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                    Spacer(minLength: 6)
-
-                    AccessTypeChip(
-                        accessType: accessPolicy.accessType,
-                        periodAccess: accessPolicy.periodAccess,
-                        hasNote: !accessPolicy.note
-                            .trimmingCharacters(
-                                in: .whitespacesAndNewlines
-                            )
-                            .isEmpty,
-                        isLimitedTime: accessPolicy.limitedTimeAccess
-                    )
-
-
                 }
             }
             .padding(.horizontal, 16)
@@ -3580,6 +3801,9 @@ struct EditPersonAuthorizationView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(
+            isAuthorizationActive ? "Access policy" : "Add access policy"
+        )
     }
     // MARK: Menus
 
@@ -3725,6 +3949,8 @@ struct EditPersonAuthorizationView: View {
 
                 Text(value)
                     .foregroundStyle(.blue)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 180, alignment: .trailing)
 
                 Image(
                     systemName:

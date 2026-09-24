@@ -180,6 +180,15 @@ struct AppointmentsOperationsView: View {
                 selectedLocationIndex: $selectedLocationIndex,
                 page: page,
                 pageSize: pageSize,
+                hasActiveSortOrFilter: appointmentFilter != .all
+                    || selectedLocationIndex != 1
+                    || sortOrder != .appointmentSoonest,
+                onResetSortAndFilters: {
+                    appointmentFilter = .all
+                    selectedLocationIndex = 1
+                    sortOrder = .appointmentSoonest
+                    page = 0
+                },
                 onSelect: { appointment in
                     selectedAppointment = appointment
                 },
@@ -220,7 +229,7 @@ struct AppointmentsOperationsView: View {
 
                 Menu {
 
-                    Section("Sort") {
+                    Menu("Sort", systemImage: "arrow.up.arrow.down") {
 
                         ForEach(
                             AppointmentSortOrder.allCases
@@ -242,16 +251,20 @@ struct AppointmentsOperationsView: View {
 
                                 } else {
 
-                                    Label(
-                                        order.title,
-                                        systemImage: order.systemImage
-                                    )
+                                    Text(order.title)
                                 }
                             }
                         }
+
+                        Divider()
+
+                        Button("Reset to default") {
+                            sortOrder = .appointmentSoonest
+                            page = 0
+                        }
                     }
 
-                    Section("Filter") {
+                    Menu("Filter", systemImage: "line.3.horizontal.decrease.circle") {
 
                         ForEach(
                             AppointmentFilter.allCases
@@ -273,12 +286,16 @@ struct AppointmentsOperationsView: View {
 
                                 } else {
 
-                                    Label(
-                                        filter.title,
-                                        systemImage: filter.systemImage
-                                    )
+                                    Text(filter.title)
                                 }
                             }
+                        }
+
+                        Divider()
+
+                        Button("Reset to default") {
+                            appointmentFilter = .all
+                            page = 0
                         }
                     }
 
@@ -294,7 +311,6 @@ struct AppointmentsOperationsView: View {
                         }
 
                         if appointmentFilter != .all
-                            || !searchText.isEmpty
                             || selectedLocationIndex != 1
                             || sortOrder != .appointmentSoonest
                         {
@@ -302,23 +318,27 @@ struct AppointmentsOperationsView: View {
                             Button {
 
                                 appointmentFilter = .all
-                                searchText = ""
                                 selectedLocationIndex = 1
                                 sortOrder = .appointmentSoonest
                                 page = 0
 
                             } label: {
 
-                                Label(
-                                    "Reset view",
-                                    systemImage: "arrow.counterclockwise"
-                                )
+                                Text("Reset view")
+                                    .foregroundStyle(.blue)
                             }
+                            .tint(.blue)
                         }
                     }
 
                 } label: {
-                    Image(systemName: "ellipsis")
+                    Image(
+                        systemName: appointmentFilter != .all
+                            || selectedLocationIndex != 1
+                            || sortOrder != .appointmentSoonest
+                            ? "ellipsis.circle.fill"
+                            : "ellipsis"
+                    )
                 }
                 .tint(.primary)
                 .accessibilityLabel(
@@ -833,6 +853,8 @@ private struct AppointmentsResultsContent: View {
 
     let page: Int
     let pageSize: Int
+    let hasActiveSortOrFilter: Bool
+    let onResetSortAndFilters: () -> Void
 
     let onSelect: (AppointmentRecord) -> Void
     let onPrevious: () -> Void
@@ -852,6 +874,15 @@ private struct AppointmentsResultsContent: View {
                         )
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
+
+                    if hasActiveSortOrFilter {
+                        Button("Reset view") {
+                            onResetSortAndFilters()
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.blue)
+                    }
 
                     Spacer()
 
@@ -966,6 +997,28 @@ private struct AppointmentRow: View {
 
     let appointment: AppointmentRecord
 
+    private var rowTitle: String {
+        [
+            appointment.personName,
+            appointment.vehicleIdentifier,
+            appointment.trailerIdentifier,
+            appointment.cargoReference,
+        ]
+        .first {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        } ?? "Appointment"
+    }
+
+    private var rowDescription: String {
+        [
+            appointment.shortDate,
+            appointment.shortTime,
+            appointment.gate,
+            appointment.direction,
+        ]
+        .joined(separator: " · ")
+    }
+
     var body: some View {
 
         HStack(
@@ -995,39 +1048,15 @@ private struct AppointmentRow: View {
                 spacing: 5
             ) {
 
-                Text(
-                    appointment.organizationName
-                )
-                .font(.body.weight(.semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
+                Text(rowTitle)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
 
-                Text(
-                    appointment.personName
-                )
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-                HStack(spacing: 8) {
-
-                    AppointmentGateLabel(
-                        gate: appointment.gate
-                    )
-
-                    Spacer(minLength: 8)
-
-                    AppointmentDirectionChip(
-                        direction:
-                            appointment.direction
-                    )
-
-                    AppointmentDateChip(
-                        date: appointment.shortDate,
-                        time: appointment.shortTime
-                    )
-                }
-                .padding(.top, 6)
+                Text(rowDescription)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             .frame(
                 maxWidth: .infinity,
@@ -1259,6 +1288,7 @@ struct AppointmentEditorView: View {
     @State private var organizationName: String
 
     @State private var vehicleType: String
+    @State private var unitNumber = ""
     @State private var vehicleIdentifier: String
     @State private var fuelType: String
 
@@ -1268,13 +1298,21 @@ struct AppointmentEditorView: View {
 
     @State private var cargoReference: String
     @State private var cargoTime: String
+    @State private var cargoStatus = ""
+    @State private var cargoSealNumber = ""
+    @State private var externalAppointmentNumber = ""
+    @State private var additionalNote = ""
+    @State private var detailValues: [String: String] = [:]
 
     // MARK: Disclosure state
 
-    @State private var isPersonExpanded = true
+    @State private var isPersonExpanded = false
     @State private var isVehicleExpanded = false
     @State private var isTrailerExpanded = false
     @State private var isCargoExpanded = false
+    @State private var isTrailerSectionExpanded = false
+    @State private var isCargoSectionExpanded = false
+    @State private var isGeneralDetailsExpanded = false
 
     private let gates = [
         "Any gate",
@@ -1285,6 +1323,12 @@ struct AppointmentEditorView: View {
     private let directions = [
         "IN",
         "OUT",
+    ]
+
+    private let cargoStatuses = [
+        "Empty",
+        "Loaded",
+        "-",
     ]
 
     private let vehicleTypes = [
@@ -1309,6 +1353,103 @@ struct AppointmentEditorView: View {
         "Unknown",
     ]
 
+    private static let personDetailFields = [
+        "DOT #",
+        "ID type",
+        "ID number",
+        "Phone number",
+        "ID present",
+        "SCAC",
+        "ID country",
+        "Company card number",
+        "First name",
+        "Last name",
+        "ID expiration date",
+        "Driver PIN #",
+        "Carrier",
+    ]
+
+    private static let vehicleDetailFields = [
+        "Fuel type",
+        "Vehicle info",
+        "Fuel level",
+        "LP country",
+        "Class",
+        "Fuel receipt",
+        "VIN #",
+    ]
+
+    private static let trailerDetailFields = [
+        "Equipment #",
+        "Container #",
+        "Chassis #",
+        "Tag #",
+        "Parking spot #",
+        "Trailer owner",
+        "Trailer condition",
+        "Dolly",
+        "Dolly number",
+        "Size",
+        "Trailer license plate #",
+        "Customer",
+        "Trailer usage",
+        "Trailer SCAC",
+    ]
+
+    private static let cargoDetailFields = [
+        "Parking spot #",
+        "Cargo status",
+        "Cargo type",
+        "Reefer",
+        "Reefer fuel",
+        "Reefer temp",
+        "Setpoint",
+        "Cargo seal",
+        "Cargo route #",
+        "Cargo trip #",
+        "Cargo move #",
+        "Cargo pickup #",
+        "Shipment number",
+        "Units on arrival",
+        "Units on departure",
+        "Units total",
+        "Brands",
+        "Brand count",
+        "Brand #2 count",
+        "Hazard load",
+        "Reefer running",
+        "Tag number #",
+        "BOL #",
+        "BOL ASN #",
+        "BOL ORS #",
+        "Load type",
+        "BOL PO #",
+        "Seal color",
+        "Load brand (tires)",
+        "BOL CID #",
+        "Load pallet #",
+        "Release #",
+        "Units dropped",
+        "Units scanned",
+        "Brand name",
+        "Brand #2 name",
+        "BOL sent",
+        "Total unit number",
+        "Booking #",
+        "Load details",
+        "Cargo load status",
+        "Order #",
+        "Reefer temp #2",
+        "Setpoint #2",
+        "Leaving Georgia",
+        "LTS chassis",
+        "FourKites started",
+        "OCR verified",
+        "Trailer status",
+        "LOB",
+        "Genset #",
+    ]
+
     init(
         appointment: AppointmentRecord? = nil
     ) {
@@ -1323,7 +1464,7 @@ struct AppointmentEditorView: View {
         )
 
         _direction = State(
-            initialValue: appointment?.direction ?? "IN"
+            initialValue: appointment?.direction ?? ""
         )
 
         _personName = State(
@@ -1335,7 +1476,7 @@ struct AppointmentEditorView: View {
         )
 
         _vehicleType = State(
-            initialValue: appointment?.vehicleType ?? "Truck"
+            initialValue: appointment?.vehicleType ?? ""
         )
 
         _vehicleIdentifier = State(
@@ -1343,7 +1484,7 @@ struct AppointmentEditorView: View {
         )
 
         _fuelType = State(
-            initialValue: appointment?.fuelType ?? "Diesel"
+            initialValue: appointment?.fuelType ?? ""
         )
 
         _trailerIdentifier = State(
@@ -1355,7 +1496,7 @@ struct AppointmentEditorView: View {
         )
 
         _trailerCondition = State(
-            initialValue: appointment?.trailerCondition ?? "Good"
+            initialValue: appointment?.trailerCondition ?? ""
         )
 
         _cargoReference = State(
@@ -1365,6 +1506,8 @@ struct AppointmentEditorView: View {
         _cargoTime = State(
             initialValue: appointment?.cargoTime ?? ""
         )
+
+        _cargoSealNumber = State(initialValue: "")
     }
 
     private var canSave: Bool {
@@ -1382,11 +1525,7 @@ struct AppointmentEditorView: View {
         NavigationStack {
 
             Form {
-
-                // MARK: Appointment
-
-                Section("Appointment") {
-
+                Section("General") {
                     DatePicker(
                         "Date",
                         selection: $appointmentDate,
@@ -1399,158 +1538,136 @@ struct AppointmentEditorView: View {
                         displayedComponents: .hourAndMinute
                     )
 
-                    trailingMenuRow(
-                        title: "Gate",
-                        selection: $gate,
-                        options: gates
+                    LabeledContent("Direction") {
+                        Picker("Direction", selection: $direction) {
+                            ForEach(directions, id: \.self) { direction in
+                                Text(direction).tag(direction)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(width: 160)
+                    }
+
+                    DisclosureGroup(
+                        "More details",
+                        isExpanded: $isGeneralDetailsExpanded
+                    ) {
+                        trailingMenuRow(
+                            title: "Gate",
+                            selection: $gate,
+                            options: gates
+                        )
+
+                        trailingTextField(
+                            title: "External appt. #",
+                            text: $externalAppointmentNumber,
+                            placeholder: "Optional"
+                        )
+                    }
+                }
+
+                AppointmentEditorDetailSection(
+                    title: "Person",
+                    summaryValues: [
+                        personName.isEmpty ? "" : "Name: \(personName)",
+                        organizationName.isEmpty
+                            ? ""
+                            : "Company: \(organizationName)",
+                    ],
+                    detailFieldTitles: Self.personDetailFields,
+                    values: $detailValues,
+                    isExpanded: $isPersonExpanded
+                ) {
+                    trailingTextField(
+                        title: "Full name",
+                        text: $personName,
+                        placeholder: "Full name"
                     )
 
-                    trailingMenuRow(
-                        title: "Direction",
-                        selection: $direction,
-                        options: directions
+                    trailingTextField(
+                        title: "Company name",
+                        text: $organizationName,
+                        placeholder: "Company name"
                     )
                 }
 
-                // MARK: Person
+                AppointmentEditorDetailSection(
+                    title: "Vehicle",
+                    summaryValues: [
+                        "Transport: \(vehicleType)",
+                        unitNumber.isEmpty ? "" : "Unit #: \(unitNumber)",
+                        vehicleIdentifier.isEmpty
+                            ? ""
+                            : "License plate: \(vehicleIdentifier)",
+                    ],
+                    detailFieldTitles: Self.vehicleDetailFields,
+                    values: $detailValues,
+                    isExpanded: $isVehicleExpanded
+                ) {
+                    trailingMenuRow(
+                        title: "Transport",
+                        selection: $vehicleType,
+                        options: vehicleTypes
+                    )
 
-                Section {
+                    trailingTextField(
+                        title: "Unit #",
+                        text: $unitNumber,
+                        placeholder: "Optional"
+                    )
 
-                    DisclosureGroup(
-                        isExpanded: $isPersonExpanded
-                    ) {
+                    trailingTextField(
+                        title: "License plate #",
+                        text: $vehicleIdentifier,
+                        placeholder: "Optional"
+                    )
+                }
 
-                        trailingTextField(
-                            title: "Full name",
-                            text: $personName,
-                            placeholder: "Full name"
-                        )
+                AppointmentEditorDetailSection(
+                    title: "Trailer",
+                    summaryValues: [],
+                    detailFieldTitles: Self.trailerDetailFields,
+                    values: $detailValues,
+                    isExpanded: $isTrailerExpanded
+                ) {
+                    trailingTextField(
+                        title: "Trailer #",
+                        text: $trailerIdentifier,
+                        placeholder: "Optional"
+                    )
 
-                        trailingTextField(
-                            title: "Organization",
-                            text: $organizationName,
-                            placeholder: "Organization name"
-                        )
-
-                    } label: {
-
-                        sectionLabel(
-                            "Person details"
-                        )
-                    }
 
                 }
-                .listRowBackground(
-                    Color(.secondarySystemGroupedBackground)
-                )
 
-                // MARK: Vehicle
+                AppointmentEditorDetailSection(
+                    title: "Cargo",
+                    summaryValues: [],
+                    detailFieldTitles: Self.cargoDetailFields,
+                    values: $detailValues,
+                    isExpanded: $isCargoExpanded
+                ) {
+                    trailingMenuRow(
+                        title: "Cargo status",
+                        selection: $cargoStatus,
+                        options: cargoStatuses
+                    )
 
-                Section {
+                    trailingTextField(
+                        title: "Seal #",
+                        text: $cargoSealNumber,
+                        placeholder: "Optional"
+                    )
+                }
 
-                    DisclosureGroup(
-                        isExpanded: $isVehicleExpanded
-                    ) {
-
-                        trailingMenuRow(
-                            title: "Vehicle type",
-                            selection: $vehicleType,
-                            options: vehicleTypes
-                        )
-
-                        trailingTextField(
-                            title: "Plate / ID",
-                            text: $vehicleIdentifier,
-                            placeholder: "6165AD"
-                        )
-
-                        trailingMenuRow(
-                            title: "Fuel type",
-                            selection: $fuelType,
-                            options: fuelTypes
-                        )
-
-                    } label: {
-
-                        sectionLabel(
-                            "Vehicle details"
-                        )
-                    }
+                Section("Additional") {
+                    trailingTextField(
+                        title: "Note",
+                        text: $additionalNote,
+                        placeholder: "Optional"
+                    )
 
                 }
-                .listRowBackground(
-                    Color(.secondarySystemGroupedBackground)
-                )
-
-                // MARK: Trailer
-
-                Section {
-
-                    DisclosureGroup(
-                        isExpanded: $isTrailerExpanded
-                    ) {
-
-                        trailingTextField(
-                            title: "Trailer ID",
-                            text: $trailerIdentifier,
-                            placeholder: "6165AD3823"
-                        )
-
-                        trailingTextField(
-                            title: "Make",
-                            text: $trailerMake,
-                            placeholder: "HOND"
-                        )
-
-                        trailingMenuRow(
-                            title: "Condition",
-                            selection: $trailerCondition,
-                            options: trailerConditions
-                        )
-
-                    } label: {
-
-                        sectionLabel(
-                            "Trailer details"
-                        )
-                    }
-
-                }
-                .listRowBackground(
-                    Color(.secondarySystemGroupedBackground)
-                )
-
-                // MARK: Cargo
-
-                Section {
-
-                    DisclosureGroup(
-                        isExpanded: $isCargoExpanded
-                    ) {
-
-                        trailingTextField(
-                            title: "Reference",
-                            text: $cargoReference,
-                            placeholder: "2457"
-                        )
-
-                        trailingTextField(
-                            title: "Cargo time",
-                            text: $cargoTime,
-                            placeholder: "08:30"
-                        )
-
-                    } label: {
-
-                        sectionLabel(
-                            "Cargo details"
-                        )
-                    }
-
-                }
-                .listRowBackground(
-                    Color(.secondarySystemGroupedBackground)
-                )
             }
             .navigationTitle(
                 appointment == nil
@@ -1585,10 +1702,7 @@ struct AppointmentEditorView: View {
                 }
             }
         }
-        .presentationDetents([
-            .medium,
-            .large,
-        ])
+        .presentationDetents([.large])
     }
 
     private var updateDetails: some View {
@@ -1608,13 +1722,81 @@ struct AppointmentEditorView: View {
 
     // MARK: - Section label
 
-    private func sectionLabel(
-        _ title: String
-    ) -> some View {
+    private var personDetailsSummary: [String] {
+        [
+            "Name: \(personName)",
+            "Organization: \(organizationName)",
+        ]
+    }
 
-        Text(title)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.secondary)
+    private var vehicleDetailsSummary: [String] {
+        [
+            "Type: \(vehicleType)",
+            vehicleIdentifier.isEmpty ? "" : "Plate / ID: \(vehicleIdentifier)",
+            "Fuel: \(fuelType)",
+        ]
+    }
+
+    private var trailerDetailsSummary: [String] {
+        [
+            trailerIdentifier.isEmpty ? "" : "Trailer ID: \(trailerIdentifier)",
+            trailerMake.isEmpty ? "" : "Make: \(trailerMake)",
+            "Condition: \(trailerCondition)",
+        ]
+    }
+
+    private var cargoDetailsSummary: [String] {
+        [
+            cargoReference.isEmpty ? "" : "Reference: \(cargoReference)",
+            cargoTime.isEmpty ? "" : "Cargo time: \(cargoTime)",
+        ]
+    }
+
+    private func collapsibleSectionLabel(
+        _ title: String,
+        isExpanded: Bool,
+        values: [String]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            if !isExpanded {
+                detailsSummary(values)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func detailsSummary(_ values: [String]) -> some View {
+        let nonEmptyValues = values.filter {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+
+        if nonEmptyValues.isEmpty {
+            Text("No details added")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        } else {
+            WrappingDetailFlowLayout(spacing: 6) {
+                ForEach(nonEmptyValues, id: \.self) { value in
+                    Text(value)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(
+                            Color(.tertiarySystemGroupedBackground),
+                            in: RoundedRectangle(
+                                cornerRadius: 9,
+                                style: .continuous
+                            )
+                        )
+                }
+            }
+        }
     }
 
     // MARK: - Trailing text field
@@ -1681,7 +1863,11 @@ struct AppointmentEditorView: View {
 
                 HStack(spacing: 5) {
 
-                    Text(selection.wrappedValue)
+                    Text(
+                        selection.wrappedValue.isEmpty
+                            ? "Select"
+                            : selection.wrappedValue
+                    )
 
                     Image(
                         systemName:
@@ -1694,6 +1880,196 @@ struct AppointmentEditorView: View {
                 .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+        }
+    }
+}
+
+private struct AppointmentEditorDetailSection<PrimaryContent: View>: View {
+    let title: String
+    let summaryValues: [String]
+    let detailFieldTitles: [String]
+    let isCollapsible: Bool
+    let collapsedSummaryValues: [String]
+
+    @Binding private var values: [String: String]
+    @Binding private var isExpanded: Bool
+
+    private let isSectionExpanded: Binding<Bool>?
+    private let primaryContent: PrimaryContent
+
+    init(
+        title: String,
+        summaryValues: [String],
+        detailFieldTitles: [String],
+        values: Binding<[String: String]>,
+        isExpanded: Binding<Bool>,
+        isCollapsible: Bool = false,
+        isSectionExpanded: Binding<Bool>? = nil,
+        collapsedSummaryValues: [String] = [],
+        @ViewBuilder primaryContent: () -> PrimaryContent
+    ) {
+        self.title = title
+        self.summaryValues = summaryValues
+        self.detailFieldTitles = detailFieldTitles
+        self.isCollapsible = isCollapsible
+        self.isSectionExpanded = isSectionExpanded
+        self.collapsedSummaryValues = collapsedSummaryValues
+        _values = values
+        _isExpanded = isExpanded
+        self.primaryContent = primaryContent()
+    }
+
+    var body: some View {
+        if isCollapsible, let isSectionExpanded {
+            Section {
+                DisclosureGroup(isExpanded: isSectionExpanded) {
+                    primaryContent
+
+                    AppointmentEditorMoreDetails(
+                        fieldTitles: detailFieldTitles,
+                        values: $values,
+                        isExpanded: $isExpanded
+                    )
+                } label: {
+                    AppointmentEditorCollapsedSectionSummary(title: title)
+                }
+            }
+        } else {
+            Section(title) {
+                primaryContent
+
+                AppointmentEditorMoreDetails(
+                    fieldTitles: detailFieldTitles,
+                    values: $values,
+                    isExpanded: $isExpanded
+                )
+            }
+        }
+    }
+}
+
+private struct AppointmentEditorMoreDetails: View {
+    let fieldTitles: [String]
+
+    @Binding private var values: [String: String]
+    @Binding private var isExpanded: Bool
+
+    @State private var showsAllDetails = false
+
+    init(
+        fieldTitles: [String],
+        values: Binding<[String: String]>,
+        isExpanded: Binding<Bool>
+    ) {
+        self.fieldTitles = fieldTitles
+        _values = values
+        _isExpanded = isExpanded
+    }
+
+    private var visibleFieldTitles: [String] {
+        showsAllDetails
+            ? fieldTitles
+            : Array(fieldTitles.prefix(10))
+    }
+
+    private var filledSummaryValues: [String] {
+        fieldTitles.compactMap { title in
+            guard let value = values[title]?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                !value.isEmpty
+            else {
+                return nil
+            }
+
+            return "\(title): \(value)"
+        }
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            ForEach(visibleFieldTitles, id: \.self) { fieldTitle in
+                LabeledContent(fieldTitle) {
+                    TextField(
+                        "Optional",
+                        text: binding(for: fieldTitle)
+                    )
+                    .multilineTextAlignment(.trailing)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: 240, alignment: .trailing)
+                }
+            }
+
+            if fieldTitles.count > 10, !showsAllDetails {
+                Button("Load more") {
+                    showsAllDetails = true
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } label: {
+            AppointmentEditorDetailSummary(
+                values: filledSummaryValues,
+                isExpanded: isExpanded
+            )
+        }
+    }
+
+    private func binding(for fieldTitle: String) -> Binding<String> {
+        Binding(
+            get: {
+                values[fieldTitle, default: ""]
+            },
+            set: { newValue in
+                values[fieldTitle] = newValue
+            }
+        )
+    }
+}
+
+private struct AppointmentEditorCollapsedSectionSummary: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.secondary)
+    }
+}
+
+private struct AppointmentEditorDetailSummary: View {
+    let values: [String]
+    let isExpanded: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("More details")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            if !isExpanded {
+                if values.isEmpty {
+                    Text("No details added")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                } else {
+                    WrappingDetailFlowLayout(spacing: 6) {
+                        ForEach(values, id: \.self) { value in
+                            Text(value)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.leading)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 5)
+                                .background(
+                                    Color(.tertiarySystemGroupedBackground),
+                                    in: RoundedRectangle(
+                                        cornerRadius: 9,
+                                        style: .continuous
+                                    )
+                                )
+                        }
+                    }
+                }
+            }
         }
     }
 }

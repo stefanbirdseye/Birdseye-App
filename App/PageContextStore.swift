@@ -5,6 +5,13 @@ import SwiftUI
 @Observable
 final class PageContextStore {
     var title: String?
+    var hidesWorkspaceComposer = false
+}
+
+@MainActor
+@Observable
+final class AIComposerStore {
+    var prompt: String?
 }
 
 private struct PageContextReporter: ViewModifier {

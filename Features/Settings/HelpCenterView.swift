@@ -2,19 +2,67 @@ import SwiftUI
 import UIKit
 
 struct HelpView: View {
+    @Environment(AIComposerStore.self) private var aiComposerStore
+
     private let featuredGuides = HelpFeaturedGuide.all
     private let aiExamples = HelpAIExample.all
     private let topics = HelpTopic.all
     private let helpCenterLink = "https://birdseye.app/help"
     @State private var isLinkCopied = false
+    @State private var isSearchPresented = false
+    @State private var searchText = ""
+
+    private var searchableTopics: [HelpTopic] {
+        [HelpTopic.discoverMore] + topics
+    }
+
+    private var filteredTopics: [HelpTopic] {
+        guard !searchText.isEmpty else {
+            return topics
+        }
+
+        return searchableTopics.compactMap { topic in
+            let matchingArticles = topic.articles.filter {
+                $0.localizedCaseInsensitiveContains(searchText)
+            }
+
+            guard topic.title.localizedCaseInsensitiveContains(searchText) || !matchingArticles.isEmpty else {
+                return nil
+            }
+
+            return HelpTopic(
+                id: topic.id,
+                title: topic.title,
+                summary: topic.summary,
+                systemImage: topic.systemImage,
+                tint: topic.tint,
+                articles: matchingArticles.isEmpty ? topic.articles : matchingArticles
+            )
+        }
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
-                HelpFeaturedSection(guides: featuredGuides)
-                HelpAISection(examples: aiExamples)
-                HelpTopicsSection(topics: topics)
-                HelpContactSection()
+                if searchText.isEmpty {
+                    HelpFeaturedSection(guides: featuredGuides)
+                    HelpAISection(
+                        examples: aiExamples,
+                        onPromptSelected: { aiComposerStore.prompt = $0 }
+                    )
+                }
+
+                if searchText.isEmpty {
+                    HelpTopicsSection(topics: topics)
+                    HelpContactSection()
+                } else if filteredTopics.isEmpty {
+                    HelpNoSearchResultsSection(
+                        searchText: searchText,
+                        onAskAI: { aiComposerStore.prompt = "Help me find information about \(searchText)." }
+                    )
+                } else {
+                    HelpTopicsSection(topics: filteredTopics)
+                }
             }
             .padding(.vertical, 20)
         }
@@ -22,8 +70,20 @@ struct HelpView: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle("Help Center")
         .navigationBarTitleDisplayMode(.inline)
+        .searchable(
+            text: $searchText,
+            isPresented: $isSearchPresented,
+            prompt: "Search Help Center"
+        )
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    isSearchPresented = true
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                }
+                .accessibilityLabel("Search Help Center")
+
                 Menu {
                     Button {
                         UIPasteboard.general.string = helpCenterLink
@@ -39,7 +99,7 @@ struct HelpView: View {
                         Label("Share Help Center", systemImage: "square.and.arrow.up")
                     }
                 } label: {
-                    Image(systemName: "ellipsis.circle")
+                    Image(systemName: "ellipsis")
                 }
                 .accessibilityLabel("More options")
             }
@@ -54,14 +114,15 @@ private struct HelpFeaturedSection: View {
         VStack(alignment: .leading, spacing: 14) {
             HelpSectionHeader(
                 title: "Discover more",
-                systemImage: "gift"
+                systemImage: "lightbulb.max"
             )
+            .padding(.horizontal, 16)
 
             ScrollView(.horizontal) {
                 HStack(spacing: 16) {
                     ForEach(guides) { guide in
                         NavigationLink {
-                            HelpMediaDetailView(guide: guide)
+                            HelpArticleView(article: HelpArticle(guide: guide))
                         } label: {
                             HelpFeaturedCard(guide: guide)
                         }
@@ -71,6 +132,7 @@ private struct HelpFeaturedSection: View {
                 .padding(.horizontal, 16)
             }
             .contentMargins(.horizontal, 0)
+            .scrollClipDisabled()
             .scrollIndicators(.hidden)
         }
     }
@@ -165,17 +227,22 @@ private struct HelpMediaThumbnail: View {
 
 private struct HelpAISection: View {
     let examples: [HelpAIExample]
+    let onPromptSelected: (String) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Do it faster with AI")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 20)
+        VStack(alignment: .leading, spacing: 14) {
+            HelpSectionHeader(
+                title: "Do it faster with AI",
+                systemImage: "sparkles"
+            )
+            .padding(.horizontal, 16)
 
             VStack(spacing: 10) {
                 ForEach(examples) { example in
-                    HelpAIPromptRow(example: example)
+                    HelpAIPromptRow(
+                        example: example,
+                        onSelect: { onPromptSelected(example.prompt) }
+                    )
                 }
             }
             .padding(16)
@@ -190,10 +257,11 @@ private struct HelpAISection: View {
 
 private struct HelpAIPromptRow: View {
     let example: HelpAIExample
+    let onSelect: () -> Void
 
     var body: some View {
         Button {
-            UIPasteboard.general.string = example.prompt
+            onSelect()
         } label: {
             Label(example.prompt, systemImage: "sparkles")
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -203,7 +271,28 @@ private struct HelpAIPromptRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(example.prompt)
-        .accessibilityHint("Copies this prompt to the clipboard")
+        .accessibilityHint("Adds this prompt to the AI composer")
+    }
+}
+
+private struct HelpNoSearchResultsSection: View {
+    let searchText: String
+    let onAskAI: () -> Void
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("No results found", systemImage: "magnifyingglass")
+        } description: {
+            Text("Try a different search, or ask AI to help with \(searchText).")
+        } actions: {
+            Button("Ask AI") {
+                onAskAI()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -211,18 +300,10 @@ private struct HelpTopicsSection: View {
     let topics: [HelpTopic]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HelpSectionHeader(
-                title: "Explore help topics",
-                systemImage: "lifepreserver"
-            )
-
-            VStack(spacing: 16) {
-                ForEach(topics) { topic in
-                    HelpTopicCategory(topic: topic)
-                }
+        VStack(spacing: 16) {
+            ForEach(topics) { topic in
+                HelpTopicCategory(topic: topic)
             }
-            .padding(.horizontal, 16)
         }
     }
 }
@@ -232,24 +313,15 @@ private struct HelpTopicCategory: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 12) {
-                Image(systemName: topic.systemImage)
-                    .font(.title3)
-                    .foregroundStyle(topic.tint)
-                    .frame(width: 40, height: 40)
-                    .background(topic.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            HelpSectionHeader(
+                title: topic.title,
+                systemImage: topic.systemImage,
+                iconColor: topic.tint
+            )
+            .padding(.horizontal, 16)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(topic.title)
-                        .font(.headline)
-
-                    Text(topic.summary)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            HelpTopicArticleList(articles: topic.articles)
+            HelpTopicArticleList(topic: topic)
+                .padding(.horizontal, 16)
         }
     }
 }
@@ -263,16 +335,19 @@ private struct HelpContactSection: View {
             )
 
             Link(destination: URL(string: "mailto:support@birdseye.app")!) {
-                HStack {
-                    Label("Contact Us", systemImage: "arrow.up.right.square")
-                        .font(.headline)
+                HStack(spacing: 12) {
+                    Image(systemName: "envelope")
+                        .foregroundStyle(Color.accentColor)
+
+                    Text("Contact Us")
+                        .foregroundStyle(Color.accentColor)
 
                     Spacer()
 
-                    Image(systemName: "arrow.up.right")
-                        .font(.subheadline.weight(.semibold))
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
                 }
-                .foregroundStyle(Color.accentColor)
                 .padding(16)
                 .background(
                     Color(.secondarySystemGroupedBackground),
@@ -287,12 +362,21 @@ private struct HelpContactSection: View {
 private struct HelpSectionHeader: View {
     let title: String
     let systemImage: String
+    var iconColor: Color = .primary
+    var includesHorizontalPadding = true
 
     var body: some View {
-        Label(title, systemImage: systemImage)
-            .font(.title3.weight(.semibold))
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 16)
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: 24, height: 24, alignment: .leading)
+                .foregroundStyle(iconColor)
+
+            Text(title)
+        }
+        .font(.title3.weight(.semibold))
+        .foregroundStyle(.primary)
+        .padding(.horizontal, includesHorizontalPadding ? 16 : 0)
     }
 }
 
@@ -332,27 +416,23 @@ private struct HelpMediaDetailView: View {
 }
 
 private struct HelpTopicArticleList: View {
-    let articles: [String]
+    let topic: HelpTopic
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("In this topic")
-                .font(.headline)
 
             VStack(spacing: 0) {
-                ForEach(articles, id: \.self) { article in
-                    HStack(spacing: 12) {
-                        Image(systemName: "doc.text")
-                            .foregroundStyle(.secondary)
+                ForEach(topic.articles, id: \.self) { title in
+                    let article = HelpArticle(topic: topic, title: title)
 
-                        Text(article)
-                            .foregroundStyle(.primary)
-
-                        Spacer()
+                    NavigationLink {
+                        HelpArticleView(article: article)
+                    } label: {
+                        HelpArticleRow(title: article.title)
                     }
-                    .padding(16)
+                    .buttonStyle(.plain)
 
-                    if article != articles.last {
+                    if title != topic.articles.last {
                         Divider()
                             .padding(.leading, 44)
                     }
@@ -363,6 +443,154 @@ private struct HelpTopicArticleList: View {
                 in: RoundedRectangle(cornerRadius: 16, style: .continuous)
             )
         }
+    }
+}
+
+private struct HelpArticleRow: View {
+    let title: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "doc.text")
+                .frame(width: 24, height: 24)
+                .foregroundStyle(.secondary)
+
+            Text(title)
+                .foregroundStyle(.primary)
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(16)
+        .contentShape(Rectangle())
+    }
+}
+
+private struct HelpRelatedArticlesSection: View {
+    let articles: [HelpArticle]
+
+    var body: some View {
+        if !articles.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                HelpSectionHeader(
+                    title: "Related articles",
+                    systemImage: "doc.on.doc",
+                    iconColor: .secondary,
+                    includesHorizontalPadding: false
+                )
+
+                VStack(spacing: 0) {
+                    ForEach(articles) { article in
+                        NavigationLink {
+                            HelpArticleView(article: article)
+                        } label: {
+                            HelpArticleRow(title: article.title)
+                        }
+                        .buttonStyle(.plain)
+
+                        if article.id != articles.last?.id {
+                            Divider()
+                                .padding(.leading, 44)
+                        }
+                    }
+                }
+                .background(
+                    Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
+            }
+            .accessibilityElement(children: .contain)
+        }
+    }
+}
+
+private struct HelpArticleView: View {
+    let article: HelpArticle
+    @Environment(AIComposerStore.self) private var aiComposerStore
+    @State private var isLinkCopied = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                HelpArticleImage(article: article)
+                    .frame(height: 210)
+
+                Text(article.title)
+                    .font(.title.bold())
+
+                Text(article.body)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+
+                Button {
+                    aiComposerStore.prompt = "Help me with \(article.title)."
+                } label: {
+                    Label("Ask AI about this", systemImage: "sparkles")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color.accentColor)
+                .accessibilityHint("Adds a question about this article to the AI composer")
+
+                HelpRelatedArticlesSection(articles: article.relatedArticles)
+            }
+            .padding(16)
+            .padding(.bottom, 112)
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(article.topicTitle)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        UIPasteboard.general.url = article.link
+                        isLinkCopied = true
+                    } label: {
+                        Label(
+                            isLinkCopied ? "Link copied" : "Copy link",
+                            systemImage: isLinkCopied ? "checkmark" : "link"
+                        )
+                    }
+
+                    ShareLink(item: article.link) {
+                        Label("Share article", systemImage: "square.and.arrow.up")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .accessibilityLabel("Article options")
+            }
+        }
+    }
+}
+
+private struct HelpArticleImage: View {
+    let article: HelpArticle
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [article.tint.opacity(0.9), article.tint],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            Circle()
+                .fill(.white.opacity(0.16))
+                .frame(width: 220, height: 220)
+                .offset(x: 110, y: -70)
+
+            Image(systemName: article.systemImage)
+                .font(.system(size: 62, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .frame(maxWidth: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .accessibilityHidden(true)
     }
 }
 
@@ -422,6 +650,71 @@ private struct HelpAIExample: Identifiable {
     ]
 }
 
+private struct HelpArticle: Identifiable {
+    let topicTitle: String
+    let topicID: String
+    let title: String
+    let systemImage: String
+    let tint: Color
+
+    init(topic: HelpTopic, title: String) {
+        topicTitle = topic.title
+        topicID = topic.id
+        self.title = title
+        systemImage = topic.systemImage
+        tint = topic.tint
+    }
+
+    init(guide: HelpFeaturedGuide) {
+        topicTitle = HelpTopic.discoverMore.title
+        topicID = HelpTopic.discoverMore.id
+        title = guide.title
+        systemImage = guide.systemImage
+        tint = guide.colors.first ?? .indigo
+    }
+
+    var id: String {
+        title
+            .lowercased()
+            .replacingOccurrences(of: "'", with: "")
+            .replacingOccurrences(of: " ", with: "-")
+    }
+
+    var link: URL {
+        URL(string: "https://birdseye.app/help/\(topicID)/\(id)")!
+    }
+
+    var body: String {
+        if let guide = HelpFeaturedGuide.all.first(where: { $0.title == title }) {
+            return guide.subtitle
+        }
+
+        return "Learn how to \(title.lowercased()) in Birdseye. Follow the guided steps to complete this task for your workspace."
+    }
+
+    var relatedArticles: [HelpArticle] {
+        if topicID == HelpTopic.discoverMore.id {
+            return HelpFeaturedGuide.all
+                .filter { $0.title != title }
+                .map(HelpArticle.init(guide:))
+        }
+
+        return HelpTopic.all
+            .first(where: { $0.id == topicID })?
+            .articles
+            .filter { $0 != title }
+            .map { HelpArticle(topicID: topicID, topicTitle: topicTitle, title: $0, systemImage: systemImage, tint: tint) } ?? []
+    }
+
+    private init(topicID: String, topicTitle: String, title: String, systemImage: String, tint: Color) {
+        self.topicID = topicID
+        self.topicTitle = topicTitle
+        self.title = title
+        self.systemImage = systemImage
+        self.tint = tint
+    }
+}
+
 private struct HelpTopic: Identifiable {
     let id: String
     let title: String
@@ -433,6 +726,15 @@ private struct HelpTopic: Identifiable {
     var link: URL {
         URL(string: "https://birdseye.app/help/\(id)")!
     }
+
+    static let discoverMore = HelpTopic(
+        id: "discover-more",
+        title: "Discover more",
+        summary: "Guides for getting more from Birdseye.",
+        systemImage: "gift",
+        tint: .indigo,
+        articles: HelpFeaturedGuide.all.map(\.title)
+    )
 
     static let all = [
         HelpTopic(

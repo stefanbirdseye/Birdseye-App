@@ -2,20 +2,11 @@ import SwiftUI
 
 struct EquipmentOperationsView: View {
 
-    private let equipment: [EquipmentRecord] = (1...100).map { index in
+    @State private var equipment: [EquipmentRecord] = (1...100).map { index in
         let categories = [
             "Car",
             "Bobtail",
             "Straight truck",
-            "Trailer",
-            "Container",
-            "Forklift",
-        ]
-
-        let equipmentTypes = [
-            "Passenger car",
-            "Semi tractor",
-            "Box truck",
             "Trailer",
             "Container",
             "Forklift",
@@ -56,13 +47,22 @@ struct EquipmentOperationsView: View {
             || accessType == "Specialized Access"
             || index.isMultiple(of: 23)
 
+        let category = categories[index % categories.count]
+        let equipmentNumber: String
+
+        if ["Bobtail", "Straight truck"].contains(category) {
+            equipmentNumber = "\(50000 + index)"
+        } else if index.isMultiple(of: 5) {
+            equipmentNumber = "TR-\(500 + index)"
+        } else {
+            equipmentNumber = "Unit \(index)"
+        }
+
         return EquipmentRecord(
             id: index,
-            equipmentNumber: index.isMultiple(of: 5)
-                ? "TR-\(500 + index)"
-                : "Unit \(index)",
-            category: categories[index % categories.count],
-            equipmentType: equipmentTypes[index % equipmentTypes.count],
+            equipmentNumber: equipmentNumber,
+            category: category,
+            equipmentType: category,
             referenceID: "Birdseye_\(30000 + index)",
             licensePlate: index.isMultiple(of: 3)
                 ? "\(32000 + index)"
@@ -255,6 +255,15 @@ struct EquipmentOperationsView: View {
                 selectedLocationIndex: $selectedLocationIndex,
                 page: page,
                 pageSize: pageSize,
+                hasActiveSortOrFilter: equipmentFilter != .all
+                    || selectedLocationIndex != 1
+                    || sortOrder != .recentlyAdded,
+                onResetSortAndFilters: {
+                    equipmentFilter = .all
+                    selectedLocationIndex = 1
+                    sortOrder = .recentlyAdded
+                    page = 0
+                },
                 onSelect: { item in
                     selectedEquipment = item
                 },
@@ -288,7 +297,7 @@ struct EquipmentOperationsView: View {
                 .accessibilityLabel("Search")
 
                 Menu {
-                    Section("Sort") {
+                    Menu("Sort", systemImage: "arrow.up.arrow.down") {
                         ForEach(EquipmentSortOrder.allCases) { order in
                             Button {
                                 sortOrder = order
@@ -300,16 +309,20 @@ struct EquipmentOperationsView: View {
                                         systemImage: "checkmark"
                                     )
                                 } else {
-                                    Label(
-                                        order.title,
-                                        systemImage: order.systemImage
-                                    )
+                                    Text(order.title)
                                 }
                             }
                         }
+
+                        Divider()
+
+                        Button("Reset to default") {
+                            sortOrder = .recentlyAdded
+                            page = 0
+                        }
                     }
 
-                    Section("Filter") {
+                    Menu("Filter", systemImage: "line.3.horizontal.decrease.circle") {
                         ForEach(EquipmentFilter.allCases) { filter in
                             Button {
                                 equipmentFilter = filter
@@ -321,12 +334,16 @@ struct EquipmentOperationsView: View {
                                         systemImage: "checkmark"
                                     )
                                 } else {
-                                    Label(
-                                        filter.title,
-                                        systemImage: filter.systemImage
-                                    )
+                                    Text(filter.title)
                                 }
                             }
+                        }
+
+                        Divider()
+
+                        Button("Reset to default") {
+                            equipmentFilter = .all
+                            page = 0
                         }
                     }
 
@@ -341,26 +358,29 @@ struct EquipmentOperationsView: View {
                         }
 
                         if equipmentFilter != .all
-                            || !searchText.isEmpty
                             || selectedLocationIndex != 1
                             || sortOrder != .recentlyAdded
                         {
                             Button {
                                 equipmentFilter = .all
-                                searchText = ""
                                 selectedLocationIndex = 1
                                 sortOrder = .recentlyAdded
                                 page = 0
                             } label: {
-                                Label(
-                                    "Reset view",
-                                    systemImage: "arrow.counterclockwise"
-                                )
+                                Text("Reset view")
+                                    .foregroundStyle(.blue)
                             }
+                            .tint(.blue)
                         }
                     }
                 } label: {
-                    Image(systemName: "ellipsis")
+                    Image(
+                        systemName: equipmentFilter != .all
+                            || selectedLocationIndex != 1
+                            || sortOrder != .recentlyAdded
+                            ? "ellipsis.circle.fill"
+                            : "ellipsis"
+                    )
                 }
                 .tint(.primary)
                 .accessibilityLabel("Sort, filter, and more")
@@ -398,7 +418,19 @@ struct EquipmentOperationsView: View {
         }
         .sheet(item: $selectedEquipment) { equipment in
             EquipmentEditorView(
-                equipment: equipment
+                equipment: equipment,
+                isAuthorizationActive: self.equipment.first(
+                    where: { $0.id == equipment.id }
+                )?.isActive ?? true,
+                onRemoveAuthorization: {
+                    guard let index = self.equipment.firstIndex(
+                        where: { $0.id == equipment.id }
+                    ) else {
+                        return
+                    }
+
+                    self.equipment[index].isActive = false
+                }
             )
         }
     }
@@ -556,7 +588,7 @@ struct EquipmentRecord: Identifiable {
     let periodAccess: String
     let hasNote: Bool
     let isLimitedTime: Bool
-    let isActive: Bool
+    var isActive: Bool
     let addedOrder: Int
     let isNewThisWeek: Bool
 }
@@ -573,6 +605,8 @@ private struct EquipmentResultsContent: View {
 
     let page: Int
     let pageSize: Int
+    let hasActiveSortOrFilter: Bool
+    let onResetSortAndFilters: () -> Void
 
     let onSelect: (EquipmentRecord) -> Void
     let onPrevious: () -> Void
@@ -586,6 +620,15 @@ private struct EquipmentResultsContent: View {
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
+
+                    if hasActiveSortOrFilter {
+                        Button("Reset view") {
+                            onResetSortAndFilters()
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.blue)
+                    }
 
                     Spacer()
 
@@ -806,20 +849,17 @@ private struct EquipmentRow: View {
                 alignment: .leading,
                 spacing: 6
             ) {
-                Text(item.equipmentNumber)
+                Text("\(item.equipmentType) · \(item.equipmentNumber)")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.primary)
-                    .lineLimit(1)
 
-                ViewThatFits(in: .horizontal) {
-                    wideMetadataRow
-                        .fixedSize(
-                            horizontal: true,
-                            vertical: false
-                        )
-
-                    compactMetadataRows
+                if let detailsSummary {
+                    Text(detailsSummary)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
+
+                compactLocationAndAccess
             }
             .frame(
                 maxWidth: .infinity,
@@ -846,50 +886,23 @@ private struct EquipmentRow: View {
         .contentShape(Rectangle())
     }
 
-    private var wideMetadataRow: some View {
-        HStack(spacing: 6) {
-            Text(item.category)
-
-            metadataSeparator
-
-            Text(item.equipmentType)
-
-            metadataSeparator
-
-            EquipmentLocationLabel(
-                locations: item.locations
-            )
-
-            EquipmentAccessTypeChip(
-                accessType: item.accessType,
-                periodAccess: item.periodAccess,
-                hasNote: item.hasNote,
-                isLimitedTime: item.isLimitedTime
-            )
+    private var detailsSummary: String? {
+        let values = [
+            item.licensePlate,
+            item.vinNumber,
+            item.fullName,
+            item.organizationName,
+        ]
+        .filter {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
-    }
+        .prefix(2)
 
-    private var compactMetadataRows: some View {
-        VStack(
-            alignment: .leading,
-            spacing: 6
-        ) {
-            HStack(spacing: 4) {
-                Text(item.category)
-
-                metadataSeparator
-
-                Text(item.equipmentType)
-            }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-
-            compactLocationAndAccess
+        guard !values.isEmpty else {
+            return nil
         }
+
+        return values.joined(separator: " · ")
     }
 
     private var compactLocationAndAccess: some View {
@@ -1030,6 +1043,8 @@ struct EquipmentEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
     let equipment: EquipmentRecord?
+    @State private var isAuthorizationActive: Bool
+    let onRemoveAuthorization: () -> Void
 
     @State private var equipmentCategory: String
     @State private var equipmentNumber: String
@@ -1043,6 +1058,7 @@ struct EquipmentEditorView: View {
     @State private var moreDetailsExpanded = false
     @State private var showingQuickScanOptions = false
     @State private var showingAccessPolicy = false
+    @State private var showingRemoveAuthorizationConfirmation = false
 
     @FocusState private var focusedField: Field?
 
@@ -1084,9 +1100,13 @@ struct EquipmentEditorView: View {
     ]
 
     init(
-        equipment: EquipmentRecord? = nil
+        equipment: EquipmentRecord? = nil,
+        isAuthorizationActive: Bool = true,
+        onRemoveAuthorization: @escaping () -> Void = {}
     ) {
         self.equipment = equipment
+        _isAuthorizationActive = State(initialValue: isAuthorizationActive)
+        self.onRemoveAuthorization = onRemoveAuthorization
 
         _equipmentCategory = State(
             initialValue:
@@ -1158,7 +1178,9 @@ struct EquipmentEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                quickScanSection
+                if equipment == nil {
+                    quickScanSection
+                }
 
                 VStack(
                     alignment: .leading,
@@ -1171,6 +1193,7 @@ struct EquipmentEditorView: View {
 
                     if equipment != nil {
                         updateDetails
+                        removeAuthorizationButton
                     }
                 }
                 .listRowInsets(
@@ -1252,16 +1275,48 @@ struct EquipmentEditorView: View {
                     "Choose how you want to scan the equipment tag or label."
                 )
             }
+            .alert(
+                "Remove authorization?",
+                isPresented: $showingRemoveAuthorizationConfirmation
+            ) {
+                Button("Remove authorization", role: .destructive) {
+                    focusedField = nil
+                    onRemoveAuthorization()
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will not delete \(equipment?.equipmentNumber ?? "this equipment"). It will be marked inactive and will no longer have access. Its name will remain in the system for previous records and history. To give it access again later, add a new access policy.")
+            }
             .sheet(
                 isPresented: $showingAccessPolicy
             ) {
                 AccessPolicyEditorView(
-                    policy: accessPolicy
-                ) { updatedPolicy in
-                    accessPolicy = updatedPolicy
-                }
+                    policy: accessPolicy,
+                    onSave: { updatedPolicy in
+                        accessPolicy = updatedPolicy
+                    }
+                )
             }
         }
+    }
+
+    private var removeAuthorizationButton: some View {
+        Button(role: .destructive) {
+            focusedField = nil
+            showingRemoveAuthorizationConfirmation = true
+        } label: {
+            Text("Remove authorization")
+                .font(.caption.weight(.medium))
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .disabled(!isAuthorizationActive)
+        .accessibilityHint(
+            isAuthorizationActive
+                ? "Marks this equipment inactive and removes its access."
+                : "Authorization has already been removed."
+        )
     }
 
     // MARK: Quick Scan
@@ -1434,33 +1489,25 @@ struct EquipmentEditorView: View {
                 .font(.subheadline)
                 .foregroundStyle(.tertiary)
         } else {
-            ScrollView(
-                .horizontal,
-                showsIndicators: false
-            ) {
-                HStack(spacing: 8) {
-                    ForEach(
-                        values,
-                        id: \.self
-                    ) { value in
-                        Text(value)
-                            .font(
-                                .caption.weight(.medium)
-                            )
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 5)
-                            .background(
-                                Color(
-                                    .secondarySystemGroupedBackground
-                                ),
-                                in: Capsule()
-                            )
-                    }
+            WrappingDetailFlowLayout(spacing: 6) {
+                ForEach(
+                    values,
+                    id: \.self
+                ) { value in
+                    Text(value)
+                        .font(
+                            .caption.weight(.medium)
+                        )
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(
+                            Color(.secondarySystemGroupedBackground),
+                            in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        )
                 }
             }
-            .scrollClipDisabled()
         }
     }
 
@@ -1471,7 +1518,8 @@ struct EquipmentEditorView: View {
             ) {
                 TextField(
                     "Optional",
-                    text: $licensePlate
+                    text: $licensePlate,
+                    axis: .vertical
                 )
                 .focused(
                     $focusedField,
@@ -1493,7 +1541,8 @@ struct EquipmentEditorView: View {
             ) {
                 TextField(
                     "Optional",
-                    text: $vinNumber
+                    text: $vinNumber,
+                    axis: .vertical
                 )
                 .focused(
                     $focusedField,
@@ -1868,7 +1917,8 @@ struct EquipmentEditorView: View {
             HStack(spacing: 5) {
                 Text(value)
                     .foregroundStyle(.blue)
-                    .lineLimit(1)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 180, alignment: .trailing)
 
                 Image(
                     systemName:

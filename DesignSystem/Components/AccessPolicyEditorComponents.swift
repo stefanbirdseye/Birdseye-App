@@ -70,7 +70,7 @@ struct MoreDetailsChips: View {
     let companyCardNumber: String
 
     var body: some View {
-        FlowLayout(spacing: 6) {
+        WrappingDetailFlowLayout(spacing: 6) {
             if !title.isEmpty {
                 AccessPolicyDetailChip(label: "Title", value: title)
             }
@@ -114,17 +114,20 @@ private struct AccessPolicyDetailChip: View {
             Text("\(label):")
                 .fontWeight(.semibold)
             Text(value)
+                .multilineTextAlignment(.leading)
         }
         .font(.caption)
         .foregroundStyle(.primary)
-        .lineLimit(1)
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
-        .background(Color(.tertiarySystemFill), in: Capsule())
+        .background(
+            Color(.tertiarySystemFill),
+            in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+        )
     }
 }
 
-private struct FlowLayout: Layout {
+struct WrappingDetailFlowLayout: Layout {
     let spacing: CGFloat
 
     init(spacing: CGFloat = 8) {
@@ -142,7 +145,9 @@ private struct FlowLayout: Layout {
         var rowHeight: CGFloat = 0
 
         for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
+            let size = subview.sizeThatFits(
+                ProposedViewSize(width: maxWidth, height: nil)
+            )
             if currentX + size.width > maxWidth, currentX > 0 {
                 currentX = 0
                 currentY += rowHeight + spacing
@@ -167,7 +172,9 @@ private struct FlowLayout: Layout {
         var rowHeight: CGFloat = 0
 
         for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
+            let size = subview.sizeThatFits(
+                ProposedViewSize(width: bounds.width, height: nil)
+            )
             if currentX + size.width > bounds.maxX, currentX > bounds.minX {
                 currentX = bounds.minX
                 currentY += rowHeight + spacing
@@ -176,7 +183,10 @@ private struct FlowLayout: Layout {
 
             subview.place(
                 at: CGPoint(x: currentX, y: currentY),
-                proposal: ProposedViewSize(size)
+                proposal: ProposedViewSize(
+                    width: min(size.width, bounds.maxX - currentX),
+                    height: size.height
+                )
             )
             currentX += size.width + spacing
             rowHeight = max(rowHeight, size.height)

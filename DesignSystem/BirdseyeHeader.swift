@@ -1,19 +1,17 @@
 import SwiftUI
 
+extension Notification.Name {
+    static let birdseyeOpenConversationHistory = Notification.Name(
+        "birdseyeOpenConversationHistory"
+    )
+}
+
 struct BirdseyeMainTabHeaderModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
             .toolbarBackground(
-                Color.birdseyeNavy,
-                for: .navigationBar
-            )
-            .toolbarBackground(
-                .visible,
-                for: .navigationBar
-            )
-            .toolbarColorScheme(
-                .dark,
+                .hidden,
                 for: .navigationBar
             )
             .toolbar {
@@ -21,11 +19,32 @@ struct BirdseyeMainTabHeaderModifier: ViewModifier {
                 // MARK: - Logo
                 // Plain logo. No Liquid Glass background.
 
-                ToolbarItem(
+                ToolbarItemGroup(
                     placement: .topBarLeading
                 ) {
+                    Button {
+                        HapticFeedback.lightImpact()
+                        NotificationCenter.default.post(
+                            name: .birdseyeOpenConversationHistory,
+                            object: nil
+                        )
+                    } label: {
+                        Image(systemName: "line.3.horizontal")
+                            .font(
+                                .system(
+                                    size: 19,
+                                    weight: .semibold
+                                )
+                            )
+                            .frame(width: 28, height: 28)
+                    }
+                    .tint(.primary)
+                    .buttonStyle(.glass)
+                    .buttonBorderShape(.circle)
+                    .accessibilityLabel("Conversation history")
+
                     BrandLogoView(
-                        foregroundStyle: .white
+                        foregroundStyle: .blue
                     )
                     .frame(
                         width: 112,
@@ -44,17 +63,27 @@ struct BirdseyeMainTabHeaderModifier: ViewModifier {
                 ) {
 
                     NavigationLink {
-                        NotificationsView()
+                        RequestsView()
                     } label: {
-                        Image(systemName: "bell")
+                        Image(systemName: "envelope")
                             .font(
                                 .system(
                                     size: 17,
                                     weight: .semibold
                                 )
                             )
+                            .overlay(alignment: .topTrailing) {
+                                Circle()
+                                    .fill(.blue)
+                                    .frame(width: 8, height: 8)
+                                    .overlay {
+                                        Circle()
+                                            .stroke(Color(.systemBackground), lineWidth: 1.5)
+                                    }
+                                    .offset(x: 3, y: -3)
+                            }
                     }
-                    .tint(.white)
+                    .tint(.primary)
                     .simultaneousGesture(TapGesture().onEnded {
                         HapticFeedback.lightImpact()
                     })
@@ -69,8 +98,18 @@ struct BirdseyeMainTabHeaderModifier: ViewModifier {
                                     weight: .semibold
                                 )
                             )
+                            .overlay(alignment: .topTrailing) {
+                                Circle()
+                                    .fill(.blue)
+                                    .frame(width: 8, height: 8)
+                                    .overlay {
+                                        Circle()
+                                            .stroke(Color(.systemBackground), lineWidth: 1.5)
+                                    }
+                                    .offset(x: 3, y: -3)
+                            }
                     }
-                    .tint(.white)
+                    .tint(.primary)
                     .simultaneousGesture(TapGesture().onEnded {
                         HapticFeedback.lightImpact()
                     })

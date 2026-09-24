@@ -1,4 +1,23 @@
 import SwiftUI
+import TipKit
+
+private struct AccessPolicyFieldsTutorialTip: Tip {
+    var title: Text {
+        Text("4. Set this driver’s access")
+    }
+
+    var message: Text? {
+        Text("Choose locations, access type, duration, and optional notes. You can also set a limited access window.")
+    }
+
+    var image: Image? {
+        Image(systemName: "checkmark.shield.fill")
+    }
+
+    var actions: [Action] {
+        Action(id: "complete", title: "Complete")
+    }
+}
 
 struct AccessPolicyEditorView: View {
 
@@ -7,6 +26,9 @@ struct AccessPolicyEditorView: View {
 
     @State private var policy: AccessPolicy
 
+    let isPersonTutorialActive: Bool
+    let onCancelTutorial: () -> Void
+    let onCompleteTutorial: () -> Void
     let onSave: (AccessPolicy) -> Void
 
     private let locations = [
@@ -31,22 +53,62 @@ struct AccessPolicyEditorView: View {
 
     init(
         policy: AccessPolicy,
-        onSave: @escaping (AccessPolicy) -> Void
+        isPersonTutorialActive: Bool = false,
+        onCancelTutorial: @escaping () -> Void = {},
+        onCompleteTutorial: @escaping () -> Void = {},
+        onSave: @escaping (AccessPolicy) -> Void = { _ in }
     ) {
 
         _policy = State(
             initialValue: policy
         )
 
+        self.isPersonTutorialActive = isPersonTutorialActive
+        self.onCancelTutorial = onCancelTutorial
+        self.onCompleteTutorial = onCompleteTutorial
         self.onSave = onSave
+
+        if isPersonTutorialActive {
+            Task {
+                await AccessPolicyFieldsTutorialTip().resetEligibility()
+            }
+        }
     }
 
+    private var tutorialTipPresentation: Binding<Bool> {
+        Binding(
+            get: { isPersonTutorialActive },
+            set: { isPresented in
+                if !isPresented {
+                    onCancelTutorial()
+                }
+            }
+        )
+    }
 
     var body: some View {
 
         NavigationStack {
 
             Form {
+
+                if isPersonTutorialActive {
+                    TipView(
+                        AccessPolicyFieldsTutorialTip(),
+                        isPresented: tutorialTipPresentation,
+                        arrowEdge: .bottom
+                    ) { action in
+                        guard action.id == "complete" else { return }
+                        onCompleteTutorial()
+                        dismiss()
+                    }
+                    .tint(.blue)
+                    .backgroundStyle(Color.white)
+                    .listRowBackground(Color.clear)
+                    .task {
+                        await AccessPolicyFieldsTutorialTip().resetEligibility()
+                    }
+                }
 
                 VStack(
                     alignment: .leading,
@@ -211,6 +273,9 @@ struct AccessPolicyEditorView: View {
                     Button("Save") {
 
                         onSave(policy)
+                        if isPersonTutorialActive {
+                            onCancelTutorial()
+                        }
 
                         dismiss()
                     }

@@ -4,6 +4,7 @@ struct ProfileView: View {
 
     @Binding var flow: AppFlow
     @Binding var showSettings: Bool
+    let onRestartOnboarding: () -> Void
     @State private var currentMember = TeamMember(
         username: "maya.chen",
         email: "maya.chen@northstar.com",
@@ -41,50 +42,14 @@ struct ProfileView: View {
                     ProfileSection(title: "Your workspace") {
 
                         NavigationLink {
-                            SettingsView(flow: $flow)
+                            SettingsView(
+                                flow: $flow,
+                                onRestartOnboarding: onRestartOnboarding
+                            )
                         } label: {
                             ProfileRow(
                                 title: "Settings",
                                 systemImage: "gearshape"
-                            )
-                        }
-
-                        Divider()
-                            .padding(.leading, 48)
-
-                        NavigationLink {
-                            Text("Saved reports")
-                                .navigationTitle("Saved reports")
-                        } label: {
-                            ProfileRow(
-                                title: "Saved reports",
-                                systemImage: "doc.text.magnifyingglass"
-                            )
-                        }
-
-                        Divider()
-                            .padding(.leading, 48)
-
-                        NavigationLink {
-                            Text("Activity history")
-                                .navigationTitle("Activity history")
-                        } label: {
-                            ProfileRow(
-                                title: "Activity history",
-                                systemImage: "clock.arrow.circlepath"
-                            )
-                        }
-                    }
-
-                    // Quick actions
-                    ProfileSection(title: "Quick actions") {
-
-                        NavigationLink {
-                            NotificationsView()
-                        } label: {
-                            ProfileRow(
-                                title: "Notification preferences",
-                                systemImage: "bell.badge"
                             )
                         }
 
@@ -97,6 +62,18 @@ struct ProfileView: View {
                             ProfileRow(
                                 title: "Help Center",
                                 systemImage: "questionmark.circle"
+                            )
+                        }
+
+                        Divider()
+                            .padding(.leading, 48)
+
+                        NavigationLink {
+                            FeedbackView()
+                        } label: {
+                            ProfileRow(
+                                title: "Send feedback",
+                                systemImage: "exclamationmark.bubble"
                             )
                         }
                     }
@@ -132,7 +109,10 @@ struct ProfileView: View {
             .background(Color(.systemGroupedBackground))
             .birdseyeMainTabPage()
             .navigationDestination(isPresented: $showSettings) {
-                SettingsView(flow: $flow)
+                SettingsView(
+                    flow: $flow,
+                    onRestartOnboarding: onRestartOnboarding
+                )
             }
         }
     }
@@ -194,6 +174,7 @@ private struct ProfileRow: View {
 struct SettingsView: View {
 
     @Binding var flow: AppFlow
+    let onRestartOnboarding: () -> Void
     @AppStorage("defaultLocation") private var defaultLocation = "Northstar (Oshawa)"
 
     var body: some View {
@@ -237,6 +218,12 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Onboarding") {
+                Button("Restart onboarding steps") {
+                    restartOnboarding()
+                }
+            }
+
             Section("Support") {
 
                 NavigationLink {
@@ -256,13 +243,24 @@ struct SettingsView: View {
             GlobalWorkspaceToolbar()
         }
     }
+
+    private func restartOnboarding() {
+        UserDefaults.standard.set(false, forKey: "onboardingAuthorizedPersonComplete")
+        UserDefaults.standard.set(false, forKey: "onboardingOrganizationComplete")
+        UserDefaults.standard.set(false, forKey: "onboardingEquipmentComplete")
+        UserDefaults.standard.set(false, forKey: "onboardingAppointmentComplete")
+        UserDefaults.standard.set(false, forKey: "onboardingCrewComplete")
+        UserDefaults.standard.set(false, forKey: "onboardingAIComplete")
+        UserDefaults.standard.set(false, forKey: "hasDismissedOnboardingChecklist")
+        onRestartOnboarding()
+    }
 }
 
-struct NotificationsView: View {
+struct FeedbackView: View {
 
     var body: some View {
         Text("Work in progress")
-            .navigationTitle("Notifications")
+            .navigationTitle("Send feedback")
     }
 }
 
@@ -270,6 +268,7 @@ struct NotificationsView: View {
 #Preview {
     ProfileView(
         flow: .constant(.main),
-        showSettings: .constant(false)
+        showSettings: .constant(false),
+        onRestartOnboarding: {}
     )
 }
