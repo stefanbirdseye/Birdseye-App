@@ -971,7 +971,7 @@ private struct LocationAccessLabel: View {
   let isAuthorized: Bool
 
   private var label: String {
-    isAuthorized ? locations.joined(separator: " · ") : "No access defined"
+    isAuthorized ? locations.joined(separator: " · ") : "No access"
   }
 
   var body: some View {
@@ -984,7 +984,11 @@ private struct LocationAccessLabel: View {
         .lineLimit(1)
         .truncationMode(.tail)
     }
-    .foregroundStyle(.secondary)
+    .foregroundStyle(
+      isAuthorized
+        ? AnyShapeStyle(.secondary)
+        : AnyShapeStyle(.red)
+    )
     .accessibilityLabel(isAuthorized ? "Authorized locations" : "Access status")
     .accessibilityValue(label)
   }
@@ -3423,7 +3427,7 @@ struct EditPersonAuthorizationView: View {
                 Button("Remove authorization", role: .destructive) {
                     focusedField = nil
                     onRemoveAuthorization()
-                    dismiss()
+                    isAuthorizationActive = false
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
@@ -3776,9 +3780,13 @@ struct EditPersonAuthorizationView: View {
                         )
                     }
                 } else {
-                    Text("No access is currently defined for this person. Add an access policy to restore their authorization.")
+                    Text("No access")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.red)
+
+                    Text("No access policy is currently defined for this person. Add an access policy to restore their authorization.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.red)
 
                     Label("Add access policy", systemImage: "plus")
                         .font(.subheadline.weight(.semibold))

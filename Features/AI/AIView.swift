@@ -545,15 +545,10 @@ private struct AIConversationHistoryView: View {
                         Button {
                             onOpen(conversation)
                         } label: {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(conversation.title)
-                                    .font(.body.weight(.semibold))
-                                    .lineLimit(1)
-                                Text(conversation.preview)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                            }
+                            Text(conversation.title)
+                                .font(.body.weight(.semibold))
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(.primary)
@@ -568,6 +563,7 @@ private struct AIConversationHistoryView: View {
                 }
             }
         }
+        .background(Color(.systemGroupedBackground))
         .navigationTitle("Conversation history")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

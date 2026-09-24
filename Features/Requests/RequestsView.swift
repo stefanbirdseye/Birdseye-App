@@ -8,6 +8,7 @@ struct RequestsView: View {
     @State private var requestText = ""
     @State private var activeDraft: RequestConversationDraft?
     @State private var requests = RequestSummary.samples
+    @State private var composerHiderID = UUID()
 
     var body: some View {
         ScrollView {
@@ -42,10 +43,10 @@ struct RequestsView: View {
             }
         }
         .onAppear {
-            pageContextStore.hidesWorkspaceComposer = true
+            pageContextStore.hideWorkspaceComposer(for: composerHiderID)
         }
         .onDisappear {
-            pageContextStore.hidesWorkspaceComposer = false
+            pageContextStore.showWorkspaceComposer(for: composerHiderID)
         }
         .sheet(item: $activeDraft) { draft in
             RequestClarificationSheet(
@@ -226,6 +227,8 @@ private struct RequestConversationView: View {
 
     @Environment(PageContextStore.self) private var pageContextStore
 
+    @State private var composerHiderID = UUID()
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -257,7 +260,10 @@ private struct RequestConversationView: View {
         .navigationTitle("Request")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            pageContextStore.hidesWorkspaceComposer = true
+            pageContextStore.hideWorkspaceComposer(for: composerHiderID)
+        }
+        .onDisappear {
+            pageContextStore.showWorkspaceComposer(for: composerHiderID)
         }
     }
 }
@@ -359,10 +365,9 @@ private struct RequestClarificationSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
+    @State private var requestTitle: String
     @State private var selectedType: RequestType
     @State private var requestDescription: String
-    @State private var followUpText = ""
-    @State private var followUpMessages: [String] = []
     @State private var attachedFileNames: [String] = []
     @State private var isFileImporterPresented = false
 
@@ -372,32 +377,27 @@ private struct RequestClarificationSheet: View {
     ) {
         self.initialRequest = initialRequest
         self.onSend = onSend
-        _selectedType = State(
-            initialValue: RequestType.suggested(for: initialRequest)
+        let suggestedType = RequestType.suggested(for: initialRequest)
+        _requestTitle = State(
+            initialValue: RequestTitleGenerator.title(
+                for: initialRequest,
+                type: suggestedType
+            )
         )
+        _selectedType = State(initialValue: suggestedType)
         _requestDescription = State(initialValue: initialRequest)
     }
 
-    private var title: String {
-        RequestTitleGenerator.title(
-            for: initialRequest,
-            type: selectedType
-        )
-    }
-
-    private func addFollowUp() {
-        let trimmedMessage = followUpText.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
-
-        guard !trimmedMessage.isEmpty else {
-            return
-        }
-
+    private func sendRequest() {
         HapticFeedback.lightImpact()
-        followUpMessages.append(trimmedMessage)
-        requestDescription += "\n\n" + trimmedMessage
-        followUpText = ""
+        onSend(
+            RequestSubmission(
+                title: requestTitle,
+                type: selectedType,
+                description: requestDescription
+            )
+        )
+        dismiss()
     }
 
     var body: some View {
@@ -406,26 +406,14 @@ private struct RequestClarificationSheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         RequestMessageBubble(
-                            text: initialRequest,
-                            isUserMessage: true
-                        )
-
-                        RequestMessageBubble(
-                            text: "Is this information right? You can send it now, or add more details to update it.",
+                            text: "Review and send, or edit anything below.",
                             isUserMessage: false
                         )
 
-                        ForEach(followUpMessages, id: \.self) { message in
-                            RequestMessageBubble(
-                                text: message,
-                                isUserMessage: true
-                            )
-                        }
-
                         RequestConfirmationCard(
-                            title: title,
+                            title: $requestTitle,
                             selectedType: $selectedType,
-                            description: requestDescription,
+                            description: $requestDescription,
                             attachedFileNames: attachedFileNames,
                             onAddFiles: {
                                 isFileImporterPresented = true
@@ -435,30 +423,12 @@ private struct RequestClarificationSheet: View {
                                     attachedFileNames.remove(at: index)
                                 }
                             },
-                            onSend: {
-                                HapticFeedback.lightImpact()
-                                onSend(
-                                    RequestSubmission(
-                                        title: title,
-                                        type: selectedType,
-                                        description: requestDescription
-                                    )
-                                )
-                                dismiss()
-                            }
+                            onSend: sendRequest
                         )
                     }
                     .padding(20)
                 }
 
-                Divider()
-
-                RequestComposer(
-                    text: $followUpText,
-                    onSubmit: addFollowUp
-                )
-                .padding(16)
-                .background(Color(.secondarySystemGroupedBackground))
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Confirm request")
@@ -468,6 +438,11 @@ private struct RequestClarificationSheet: View {
                     Button("Cancel") {
                         dismiss()
                     }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Send", action: sendRequest)
+                        .fontWeight(.semibold)
                 }
             }
         }
@@ -515,9 +490,9 @@ private struct RequestMessageBubble: View {
 
 private struct RequestConfirmationCard: View {
 
-    let title: String
+    @Binding var title: String
     @Binding var selectedType: RequestType
-    let description: String
+    @Binding var description: String
     let attachedFileNames: [String]
     let onAddFiles: () -> Void
     let onRemoveFile: (String) -> Void
@@ -525,7 +500,7 @@ private struct RequestConfirmationCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            RequestPreviewTextField(label: "Title", value: title)
+            RequestPreviewTextField(label: "Title", text: $title)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Type")
@@ -554,7 +529,7 @@ private struct RequestConfirmationCard: View {
 
             RequestPreviewTextField(
                 label: "Description",
-                value: description,
+                text: $description,
                 minimumHeight: 104
             )
 
@@ -586,14 +561,18 @@ private struct RequestConfirmationCard: View {
                 }
             }
 
-            Divider()
-
-            Button("Send request", action: onSend)
-                .font(.headline)
-                .frame(maxWidth: .infinity, minHeight: 52)
-                .buttonStyle(.borderedProminent)
-                .tint(.blue)
-                .accessibilityHint("Sends this request to Birdseye Support")
+            Button(action: onSend) {
+                Text("Send request")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(
+                        Color.blue,
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Sends this request to Birdseye Support")
         }
         .padding(20)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 24))
@@ -603,7 +582,7 @@ private struct RequestConfirmationCard: View {
 private struct RequestPreviewTextField: View {
 
     let label: LocalizedStringKey
-    let value: String
+    @Binding var text: String
     var minimumHeight: CGFloat = 0
 
     var body: some View {
@@ -612,15 +591,20 @@ private struct RequestPreviewTextField: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            Text(value)
+            TextField("", text: $text, axis: .vertical)
                 .font(.body)
+                .lineLimit(minimumHeight > 0 ? 4...8 : 1...1)
                 .frame(
                     maxWidth: .infinity,
                     minHeight: minimumHeight,
                     alignment: .topLeading
                 )
                 .padding(12)
-                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+                .background(
+                    Color(.secondarySystemBackground),
+                    in: RoundedRectangle(cornerRadius: 12)
+                )
+                .accessibilityLabel(Text(label))
         }
     }
 }

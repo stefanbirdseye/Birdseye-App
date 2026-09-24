@@ -5,7 +5,20 @@ import SwiftUI
 @Observable
 final class PageContextStore {
     var title: String?
-    var hidesWorkspaceComposer = false
+
+    private var workspaceComposerHiders = Set<UUID>()
+
+    var hidesWorkspaceComposer: Bool {
+        !workspaceComposerHiders.isEmpty
+    }
+
+    func hideWorkspaceComposer(for sourceID: UUID) {
+        workspaceComposerHiders.insert(sourceID)
+    }
+
+    func showWorkspaceComposer(for sourceID: UUID) {
+        workspaceComposerHiders.remove(sourceID)
+    }
 }
 
 @MainActor
