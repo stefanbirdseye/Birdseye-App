@@ -245,6 +245,7 @@ struct SettingsView: View {
     }
 
     private func restartOnboarding() {
+        UserDefaults.standard.set(true, forKey: "isOnboardingEnabled")
         UserDefaults.standard.set(false, forKey: "onboardingAuthorizedPersonComplete")
         UserDefaults.standard.set(false, forKey: "onboardingOrganizationComplete")
         UserDefaults.standard.set(false, forKey: "onboardingEquipmentComplete")

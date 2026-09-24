@@ -51,6 +51,7 @@ struct HomeView: View {
     @State private var isLocationTipPresented = false
     @State private var isOnboardingExpanded = true
     @State private var isPersonTutorialActive = false
+    @AppStorage("isOnboardingEnabled") private var isOnboardingEnabled = false
     @AppStorage("hasDismissedOnboardingChecklist") private var hasDismissedOnboardingChecklist = false
     @AppStorage("onboardingAuthorizedPersonComplete") private var isAuthorizedPersonComplete = false
     @AppStorage("hasResetPersonTutorialCompletion") private var hasResetPersonTutorialCompletion = false
@@ -77,7 +78,8 @@ struct HomeView: View {
 
                             Spacer(minLength: 0)
 
-                            if hasDismissedOnboardingChecklist || !isOnboardingExpanded {
+                            if isOnboardingEnabled,
+                               hasDismissedOnboardingChecklist || !isOnboardingExpanded {
                                 OnboardingToggleButton(
                                     isExpanded: $isOnboardingExpanded,
                                     onShow: {
@@ -88,7 +90,9 @@ struct HomeView: View {
                             }
                         }
 
-                        if !hasDismissedOnboardingChecklist && isOnboardingExpanded {
+                        if isOnboardingEnabled,
+                           !hasDismissedOnboardingChecklist,
+                           isOnboardingExpanded {
                             OnboardingChecklist(
                                 completedTasks: onboardingCompletionStates,
                                 isExpanded: $isOnboardingExpanded,

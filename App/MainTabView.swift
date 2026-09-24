@@ -240,7 +240,7 @@ struct MainTabView: View {
         TabView(selection: $selectedTab) {
 
             Tab(
-                "AI",
+                "Birdseye AI",
                 systemImage: "sparkles",
                 value: MainTab.ai
             ) {
@@ -269,7 +269,7 @@ struct MainTabView: View {
 
             Tab(
                 "Now",
-                systemImage: "house",
+                systemImage: "waveform.path.ecg",
                 value: MainTab.home
             ) {
                 HomeView(

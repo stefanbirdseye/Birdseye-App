@@ -43,7 +43,7 @@ struct SplashView: View {
 
             ZStack {
 
-                Color.birdseyeNavy
+                Color.blue
                     .ignoresSafeArea()
 
                 // BIG TOP TRUCK

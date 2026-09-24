@@ -203,7 +203,7 @@ struct LoginView: View {
                     BrandLogoView(
                         foregroundStyle: colorScheme == .dark
                             ? .white
-                            : .birdseyeNavy
+                            : .blue
                     )
                     .frame(width: 116, height: 19)
                 }
