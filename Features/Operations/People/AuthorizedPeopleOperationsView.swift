@@ -140,6 +140,7 @@ struct AuthorizedPeopleOperationsView: View {
   @State private var showingAdd = false
   @State private var selectedPerson: ExistingPerson?
   @State private var sortOrder: PeopleSortOrder = .recentlyAdded
+  @AppStorage("isExportListEnabled") private var isExportListEnabled = false
   private let pageSize = 20
 
   private func tutorialPresentation(for step: PersonTutorialStep) -> Binding<Bool> {
@@ -356,14 +357,16 @@ struct AuthorizedPeopleOperationsView: View {
               page = 0
             }
           }
-          Section("Actions") {
-            Button {
-              // Export action
-            } label: {
-              Label(
-                "Export list",
-                systemImage: "square.and.arrow.up"
-              )
+          if isExportListEnabled {
+            Section("Actions") {
+              Button {
+                // Export action
+              } label: {
+                Label(
+                  "Export list",
+                  systemImage: "square.and.arrow.up"
+                )
+              }
             }
           }
         } label: {

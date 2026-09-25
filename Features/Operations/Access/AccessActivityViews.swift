@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Access Records
 
@@ -13,7 +14,10 @@ struct AccessRecordsView: View {
     @State private var selectedRecord: AccessRecord?
 
     @State private var directionFilter: AccessDirectionFilter = .all
+    @State private var vehicleTypeFilter: VehicleType?
+    @State private var timeFilter: AccessRecordTimeFilter = .all
     @State private var sortOrder: AccessRecordSortOrder = .newest
+    @AppStorage("isExportListEnabled") private var isExportListEnabled = false
 
     @State private var page = 0
 
@@ -82,10 +86,17 @@ struct AccessRecordsView: View {
                 }
             }()
 
+            let matchesVehicle = vehicleTypeFilter == nil ||
+                record.vehicleType == vehicleTypeFilter
+
+            let matchesTime = timeFilter.includes(record.date)
+
             return
                 matchesSearch &&
                 matchesLocation &&
-                matchesDirection
+                matchesDirection &&
+                matchesVehicle &&
+                matchesTime
         }
 
         switch sortOrder {
@@ -119,6 +130,20 @@ struct AccessRecordsView: View {
                     $1.accessPoint
                 ) == .orderedAscending
             }
+
+        case .vehicleType:
+            return filtered.sorted {
+                $0.vehicleType.title.localizedStandardCompare(
+                    $1.vehicleType.title
+                ) == .orderedAscending
+            }
+
+        case .direction:
+            return filtered.sorted {
+                $0.direction.title.localizedStandardCompare(
+                    $1.direction.title
+                ) == .orderedAscending
+            }
         }
     }
 
@@ -148,10 +173,14 @@ struct AccessRecordsView: View {
                 pageSize: pageSize,
                 hasActiveSortOrFilter: directionFilter != .all
                     || selectedLocationIndex != 0
+                    || vehicleTypeFilter != nil
+                    || timeFilter != .all
                     || sortOrder != .newest,
                 onResetSortAndFilters: {
                     directionFilter = .all
                     selectedLocationIndex = 0
+                    vehicleTypeFilter = nil
+                    timeFilter = .all
                     sortOrder = .newest
                     page = 0
                 },
@@ -232,25 +261,58 @@ struct AccessRecordsView: View {
                     }
 
                     Menu("Filter", systemImage: "line.3.horizontal.decrease.circle") {
-                        ForEach(
-                            AccessDirectionFilter.allCases
-                        ) { filter in
-                            Button {
-                                directionFilter =
-                                    filter
+                        Menu("Direction", systemImage: "arrow.left.arrow.right") {
+                            ForEach(AccessDirectionFilter.allCases) { filter in
+                                Button {
+                                    directionFilter = filter
+                                    page = 0
+                                } label: {
+                                    if directionFilter == filter {
+                                        Label(filter.title, systemImage: "checkmark")
+                                    } else {
+                                        Text(filter.title)
+                                    }
+                                }
+                            }
+                        }
 
+                        Menu("Vehicle type", systemImage: "car") {
+                            Button {
+                                vehicleTypeFilter = nil
                                 page = 0
                             } label: {
-                                if directionFilter ==
-                                    filter
-                                {
-                                    Label(
-                                        filter.title,
-                                        systemImage:
-                                            "checkmark"
-                                    )
+                                if vehicleTypeFilter == nil {
+                                    Label("All vehicles", systemImage: "checkmark")
                                 } else {
-                                    Text(filter.title)
+                                    Text("All vehicles")
+                                }
+                            }
+
+                            ForEach(VehicleType.allCases, id: \.self) { vehicleType in
+                                Button {
+                                    vehicleTypeFilter = vehicleType
+                                    page = 0
+                                } label: {
+                                    if vehicleTypeFilter == vehicleType {
+                                        Label(vehicleType.title, systemImage: "checkmark")
+                                    } else {
+                                        Text(vehicleType.title)
+                                    }
+                                }
+                            }
+                        }
+
+                        Menu("Time", systemImage: "calendar") {
+                            ForEach(AccessRecordTimeFilter.allCases) { filter in
+                                Button {
+                                    timeFilter = filter
+                                    page = 0
+                                } label: {
+                                    if timeFilter == filter {
+                                        Label(filter.title, systemImage: "checkmark")
+                                    } else {
+                                        Text(filter.title)
+                                    }
                                 }
                             }
                         }
@@ -259,42 +321,52 @@ struct AccessRecordsView: View {
 
                         Button("Reset to default") {
                             directionFilter = .all
+                            vehicleTypeFilter = nil
+                            timeFilter = .all
                             page = 0
                         }
                     }
 
-                    Section("Actions") {
-                        Button {
-                            // Export records
-                        } label: {
-                            Label(
-                                "Export records",
-                                systemImage:
-                                    "square.and.arrow.up"
-                            )
-                        }
-
-                        if directionFilter != .all ||
-                            selectedLocationIndex != 0 ||
-                            sortOrder != .newest
-                        {
+                    if isExportListEnabled {
+                        Section("Actions") {
                             Button {
-                                directionFilter = .all
-                                selectedLocationIndex = 0
-                                sortOrder = .newest
-                                page = 0
+                                // Export records
                             } label: {
-                                Text("Reset view")
-                                    .foregroundStyle(.blue)
+                                Label(
+                                    "Export records",
+                                    systemImage:
+                                        "square.and.arrow.up"
+                                )
                             }
-                            .tint(.blue)
                         }
+                    }
+
+                    if directionFilter != .all ||
+                        selectedLocationIndex != 0 ||
+                        vehicleTypeFilter != nil ||
+                        timeFilter != .all ||
+                        sortOrder != .newest
+                    {
+                        Button {
+                            directionFilter = .all
+                            selectedLocationIndex = 0
+                            vehicleTypeFilter = nil
+                            timeFilter = .all
+                            sortOrder = .newest
+                            page = 0
+                        } label: {
+                            Text("Reset view")
+                                .foregroundStyle(.blue)
+                        }
+                        .tint(.blue)
                     }
 
                 } label: {
                     Image(
                         systemName: directionFilter != .all
                             || selectedLocationIndex != 0
+                            || vehicleTypeFilter != nil
+                            || timeFilter != .all
                             || sortOrder != .newest
                             ? "ellipsis.circle.fill"
                             : "ellipsis"
@@ -327,6 +399,12 @@ struct AccessRecordsView: View {
         .onChange(
             of: directionFilter
         ) { _, _ in
+            page = 0
+        }
+        .onChange(of: vehicleTypeFilter) { _, _ in
+            page = 0
+        }
+        .onChange(of: timeFilter) { _, _ in
             page = 0
         }
         .onChange(
@@ -735,34 +813,31 @@ private struct AccessRecordThumbnail: View {
         ZStack(
             alignment: .bottomTrailing
         ) {
-
-            RoundedRectangle(
-                cornerRadius: 10,
-                style: .continuous
-            )
-            .fill(
-                Color.secondary.opacity(
-                    0.10
+            ZStack {
+                RoundedRectangle(
+                    cornerRadius: 10,
+                    style: .continuous
                 )
-            )
-            .frame(
-                width: 48,
-                height: 40
-            )
-            .overlay {
-                Image(
-                    systemName:
-                        "photo.on.rectangle.angled"
-                )
-                .font(
-                    .subheadline.weight(
-                        .medium
+                .fill(
+                    Color.secondary.opacity(
+                        0.10
                     )
                 )
-                .foregroundStyle(
-                    .secondary
+
+                AccessSnapshotImage(
+                    snapshot: record.snapshots[0],
+                    contentMode: .fill
                 )
+                .frame(width: 50, height: 50)
+                .clipped()
             }
+            .frame(width: 50, height: 50)
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: 10,
+                    style: .continuous
+                )
+            )
 
             Text(
                 "\(record.snapshots.count)"
@@ -794,8 +869,8 @@ private struct AccessRecordThumbnail: View {
             )
         }
         .frame(
-            width: 48,
-            height: 42,
+            width: 50,
+            height: 50,
             alignment: .top
         )
         .accessibilityElement(
@@ -942,6 +1017,13 @@ private struct AccessRecordPreviewSheet: View {
 
     @State private var selectedSnapshotIndex = 0
 
+    @State private var fullScreenSnapshot: AccessSnapshot?
+
+    @GestureState private var previewMagnification = 1.0
+    @State private var previewBaseScale = 1.0
+    @GestureState private var previewDragTranslation = CGSize.zero
+    @State private var previewBaseOffset = CGSize.zero
+
     let onSave:
         (AccessRecord) -> Void
 
@@ -1037,6 +1119,16 @@ private struct AccessRecordPreviewSheet: View {
         .presentationDragIndicator(
             .visible
         )
+        .fullScreenCover(item: $fullScreenSnapshot) { snapshot in
+            let selectedIndex = record.snapshots.firstIndex {
+                $0.id == snapshot.id
+            } ?? 0
+
+            ActivitySnapshotViewer(
+                snapshots: record.snapshots,
+                selectedSnapshotIndex: selectedIndex
+            )
+        }
     }
 
     // MARK: Gallery
@@ -1050,62 +1142,112 @@ private struct AccessRecordPreviewSheet: View {
             ZStack(
                 alignment: .bottomLeading
             ) {
-                RoundedRectangle(
-                    cornerRadius: 20,
-                    style: .continuous
-                )
-                .fill(
-                    Color.secondary.opacity(
-                        0.10
+                Color.black
+
+                GeometryReader { proxy in
+                    AccessSnapshotImage(
+                        snapshot: record.snapshots[selectedSnapshotIndex],
+                        contentMode: .fit
                     )
-                )
-                .frame(height: 220)
-                .overlay {
-                    Image(
-                        systemName:
-                            record.snapshots[
-                                selectedSnapshotIndex
-                            ].systemImage
+                    .scaleEffect(previewScale)
+                    .offset(previewOffset(in: proxy.size))
+                }
+
+                HStack {
+                    Text(
+                        "\(selectedSnapshotIndex + 1) of \(record.snapshots.count)"
                     )
                     .font(
-                        .system(
-                            size: 52,
-                            weight: .light
+                        .caption.weight(
+                            .semibold
                         )
                     )
                     .foregroundStyle(
-                        .secondary
+                        .white
                     )
-                }
+                    .monospacedDigit()
+                    .padding(
+                        .horizontal,
+                        9
+                    )
+                    .padding(
+                        .vertical,
+                        5
+                    )
+                    .background(
+                        .black.opacity(
+                            0.65
+                        ),
+                        in: Capsule()
+                    )
 
-                Text(
-                    "\(selectedSnapshotIndex + 1) of \(record.snapshots.count)"
-                )
-                .font(
-                    .caption.weight(
-                        .semibold
-                    )
-                )
-                .foregroundStyle(
-                    .white
-                )
-                .monospacedDigit()
-                .padding(
-                    .horizontal,
-                    9
-                )
-                .padding(
-                    .vertical,
-                    5
-                )
-                .background(
-                    .black.opacity(
-                        0.65
-                    ),
-                    in: Capsule()
-                )
+                    Spacer()
+
+                    Button {
+                        fullScreenSnapshot = record.snapshots[selectedSnapshotIndex]
+                    } label: {
+                        Image(
+                            systemName: "arrow.up.left.and.arrow.down.right"
+                        )
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 28, height: 28)
+                        .background(
+                            .black.opacity(0.65),
+                            in: Circle()
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open full-screen image")
+                }
                 .padding(12)
             }
+            .aspectRatio(16 / 9, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .gesture(
+                MagnifyGesture()
+                    .updating($previewMagnification) { value, state, _ in
+                        state = value.magnification
+                    }
+                    .onEnded { value in
+                        previewBaseScale = min(
+                            max(previewBaseScale * value.magnification, 1),
+                            4
+                        )
+                    }
+            )
+            .simultaneousGesture(
+                DragGesture()
+                    .updating($previewDragTranslation) { value, state, _ in
+                        guard previewScale > 1 else {
+                            return
+                        }
+
+                        state = value.translation
+                    }
+                    .onEnded { value in
+                        guard previewBaseScale > 1 else {
+                            return
+                        }
+
+                        previewBaseOffset = CGSize(
+                            width: previewBaseOffset.width + value.translation.width,
+                            height: previewBaseOffset.height + value.translation.height
+                        )
+                    }
+            )
+            .onTapGesture {
+                if previewScale > 1 {
+                    withAnimation(.snappy) {
+                        previewBaseScale = 1
+                        previewBaseOffset = .zero
+                    }
+                } else {
+                    fullScreenSnapshot = record.snapshots[selectedSnapshotIndex]
+                }
+            }
+            .accessibilityLabel("Open transaction image \(selectedSnapshotIndex + 1) of \(record.snapshots.count)")
+            .accessibilityHint("Pinch to zoom. Tap to open full screen.")
             .padding(
                 .horizontal,
                 16
@@ -1124,33 +1266,24 @@ private struct AccessRecordPreviewSheet: View {
                         Button {
                             selectedSnapshotIndex =
                                 index
+                            previewBaseScale = 1
+                            previewBaseOffset = .zero
                         } label: {
-                            RoundedRectangle(
-                                cornerRadius: 9,
-                                style: .continuous
-                            )
-                            .fill(
-                                Color.secondary
-                                    .opacity(
-                                        0.10
-                                    )
+                            AccessSnapshotImage(
+                                snapshot: record.snapshots[index],
+                                contentMode: .fill
                             )
                             .frame(
-                                width: 66,
-                                height: 50
+                                width: 72,
+                                height: 40
                             )
-                            .overlay {
-                                Image(
-                                    systemName:
-                                        record.snapshots[
-                                            index
-                                        ].systemImage
-                                )
-                                .font(.body)
-                                .foregroundStyle(
-                                    .secondary
-                                )
-                            }
+                            .background(
+                                Color.secondary.opacity(0.10),
+                                in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            )
+                            .clipShape(
+                                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            )
                             .overlay {
                                 if index ==
                                     selectedSnapshotIndex
@@ -1177,6 +1310,24 @@ private struct AccessRecordPreviewSheet: View {
                 )
             }
         }
+    }
+
+    private var previewScale: CGFloat {
+        min(max(previewBaseScale * previewMagnification, 1), 4)
+    }
+
+    private func previewOffset(in size: CGSize) -> CGSize {
+        let maximumHorizontalOffset = (previewScale - 1) * size.width / 2
+        let maximumVerticalOffset = (previewScale - 1) * size.height / 2
+        let offset = CGSize(
+            width: previewBaseOffset.width + previewDragTranslation.width,
+            height: previewBaseOffset.height + previewDragTranslation.height
+        )
+
+        return CGSize(
+            width: min(max(offset.width, -maximumHorizontalOffset), maximumHorizontalOffset),
+            height: min(max(offset.height, -maximumVerticalOffset), maximumVerticalOffset)
+        )
     }
 
     // MARK: Details
@@ -1941,6 +2092,42 @@ private enum AccessDirectionFilter:
 }
 
 
+private enum AccessRecordTimeFilter:
+    CaseIterable,
+    Identifiable
+{
+    case all
+    case today
+    case last24Hours
+
+    var id: Self {
+        self
+    }
+
+    var title: String {
+        switch self {
+        case .all:
+            return "All time"
+        case .today:
+            return "Today"
+        case .last24Hours:
+            return "Last 24 hours"
+        }
+    }
+
+    func includes(_ date: Date) -> Bool {
+        switch self {
+        case .all:
+            return true
+        case .today:
+            return Calendar.current.isDateInToday(date)
+        case .last24Hours:
+            return date >= Date.now.addingTimeInterval(-86_400)
+        }
+    }
+}
+
+
 // MARK: - Sort
 
 private enum AccessRecordSortOrder:
@@ -1953,6 +2140,8 @@ private enum AccessRecordSortOrder:
     case name
     case company
     case accessPoint
+    case vehicleType
+    case direction
 
     var id: Self {
         self
@@ -1974,6 +2163,12 @@ private enum AccessRecordSortOrder:
 
         case .accessPoint:
             return "Access point"
+
+        case .vehicleType:
+            return "Vehicle type"
+
+        case .direction:
+            return "Direction"
         }
     }
 
@@ -1993,6 +2188,12 @@ private enum AccessRecordSortOrder:
 
         case .accessPoint:
             return "door.left.hand.open"
+
+        case .vehicleType:
+            return "car"
+
+        case .direction:
+            return "arrow.left.arrow.right"
         }
     }
 }
@@ -2006,6 +2207,265 @@ private struct AccessSnapshot:
     let id = UUID()
 
     let systemImage: String
+    let assetName: String?
+}
+
+
+private struct AccessSnapshotImage: View {
+
+    let snapshot: AccessSnapshot
+    let contentMode: ContentMode
+
+    var body: some View {
+        Group {
+            if let assetName = snapshot.assetName {
+                Image(assetName)
+                    .resizable()
+                    .aspectRatio(contentMode: contentMode)
+            } else {
+                Image(systemName: snapshot.systemImage)
+                    .font(.system(size: 52, weight: .light))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+
+private struct ActivitySnapshotViewer: View {
+
+    @Environment(\.dismiss) private var dismiss
+
+    let snapshots: [AccessSnapshot]
+
+    @State private var selectedSnapshotIndex: Int
+
+    @GestureState private var gestureScale = 1.0
+    @State private var baseScale = 1.0
+    @GestureState private var dragTranslation = CGSize.zero
+    @State private var baseOffset = CGSize.zero
+    @State private var isSaveConfirmationPresented = false
+
+    init(
+        snapshots: [AccessSnapshot],
+        selectedSnapshotIndex: Int
+    ) {
+        self.snapshots = snapshots
+        _selectedSnapshotIndex = State(
+            initialValue: min(
+                max(selectedSnapshotIndex, 0),
+                max(snapshots.count - 1, 0)
+            )
+        )
+    }
+
+    private var currentSnapshot: AccessSnapshot? {
+        snapshots.indices.contains(selectedSnapshotIndex)
+            ? snapshots[selectedSnapshotIndex]
+            : nil
+    }
+
+    private var scale: CGFloat {
+        min(max(baseScale * gestureScale, 1), 4)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.black
+                    .ignoresSafeArea()
+
+                if snapshots.isEmpty {
+                    ContentUnavailableView(
+                        "No images available",
+                        systemImage: "photo"
+                    )
+                    .foregroundStyle(.white)
+
+                } else {
+                    GeometryReader { proxy in
+                        TabView(selection: $selectedSnapshotIndex) {
+                            ForEach(snapshots.indices, id: \.self) { index in
+                                snapshotPage(
+                                    snapshots[index],
+                                    in: proxy.size
+                                )
+                                .tag(index)
+                            }
+                        }
+                        .tabViewStyle(.page(indexDisplayMode: .never))
+                    }
+
+                    VStack {
+                        Spacer()
+
+                        Text(
+                            "\(selectedSnapshotIndex + 1) of \(snapshots.count)"
+                        )
+                        .font(.caption.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.black.opacity(0.65), in: Capsule())
+                        .padding(.bottom, 20)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(
+                        "Image \(selectedSnapshotIndex + 1) of \(snapshots.count)"
+                    )
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        withAnimation(.snappy) {
+                            baseScale = max(baseScale - 0.5, 1)
+                            if baseScale == 1 {
+                                baseOffset = .zero
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "minus.magnifyingglass")
+                    }
+                    .disabled(baseScale <= 1)
+                    .accessibilityLabel("Zoom out")
+
+                    Button {
+                        withAnimation(.snappy) {
+                            baseScale = min(baseScale + 0.5, 4)
+                        }
+                    } label: {
+                        Image(systemName: "plus.magnifyingglass")
+                    }
+                    .disabled(baseScale >= 4)
+                    .accessibilityLabel("Zoom in")
+
+                    if let currentSnapshot {
+                        Button {
+                            saveImage(currentSnapshot)
+                        } label: {
+                            Image(systemName: "arrow.down.to.line")
+                        }
+                        .accessibilityLabel("Save image to Photos")
+                    }
+                }
+            }
+            .tint(.white)
+            .alert("Image Saved", isPresented: $isSaveConfirmationPresented) {
+                Button("OK", role: .cancel) {
+                }
+            } message: {
+                Text("The transaction image was saved to your photo library.")
+            }
+        }
+        .onChange(of: selectedSnapshotIndex) { _, _ in
+            baseScale = 1
+            baseOffset = .zero
+        }
+    }
+
+    @ViewBuilder
+    private func snapshotPage(
+        _ snapshot: AccessSnapshot,
+        in size: CGSize
+    ) -> some View {
+        if baseScale > 1 {
+            snapshotImage(snapshot, in: size)
+                .simultaneousGesture(panGesture)
+        } else {
+            snapshotImage(snapshot, in: size)
+        }
+    }
+
+    private func snapshotImage(
+        _ snapshot: AccessSnapshot,
+        in size: CGSize
+    ) -> some View {
+        Group {
+            if let assetName = snapshot.assetName {
+                Image(assetName)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                Image(systemName: snapshot.systemImage)
+                    .font(.system(size: 96, weight: .light))
+                    .foregroundStyle(.white)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .scaleEffect(scale)
+        .offset(imageOffset(in: size))
+        .gesture(
+            MagnifyGesture()
+                .updating($gestureScale) { value, state, _ in
+                    state = value.magnification
+                }
+                .onEnded { value in
+                    baseScale = min(
+                        max(baseScale * value.magnification, 1),
+                        4
+                    )
+                    if baseScale == 1 {
+                        baseOffset = .zero
+                    }
+                }
+        )
+        .onTapGesture(count: 2) {
+            withAnimation(.snappy) {
+                baseScale = baseScale > 1 ? 1 : 2
+                baseOffset = .zero
+            }
+        }
+        .accessibilityLabel("Transaction image")
+        .accessibilityHint(
+            "Swipe left or right to view another image. Pinch to zoom, then drag to pan. Double tap to toggle zoom."
+        )
+    }
+
+    private var panGesture: some Gesture {
+        DragGesture()
+            .updating($dragTranslation) { value, state, _ in
+                state = value.translation
+            }
+            .onEnded { value in
+                baseOffset = CGSize(
+                    width: baseOffset.width + value.translation.width,
+                    height: baseOffset.height + value.translation.height
+                )
+            }
+    }
+
+    private func saveImage(_ snapshot: AccessSnapshot) {
+        guard let assetName = snapshot.assetName,
+              let image = UIImage(named: assetName) else {
+            return
+        }
+
+        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+        isSaveConfirmationPresented = true
+    }
+
+    private func imageOffset(in size: CGSize) -> CGSize {
+        let maximumHorizontalOffset = (scale - 1) * size.width / 2
+        let maximumVerticalOffset = (scale - 1) * size.height / 2
+        let offset = CGSize(
+            width: baseOffset.width + dragTranslation.width,
+            height: baseOffset.height + dragTranslation.height
+        )
+
+        return CGSize(
+            width: min(max(offset.width, -maximumHorizontalOffset), maximumHorizontalOffset),
+            height: min(max(offset.height, -maximumVerticalOffset), maximumVerticalOffset)
+        )
+    }
 }
 
 
@@ -2091,6 +2551,18 @@ private struct AccessRecord:
             "photo.on.rectangle.angled"
         ]
 
+        let activityImageNames = [
+            "ActivityMultiCamera",
+            "ActivityTrailer",
+            "ActivityNightTrailer",
+            "ActivityPlateRed",
+            "ActivityPlateGray"
+        ]
+
+        let snapshotStart = fullName.unicodeScalars.reduce(0) { partialResult, scalar in
+            partialResult + Int(scalar.value)
+        } % activityImageNames.count
+
         self.snapshots =
             (0..<snapshotCount)
                 .map { index in
@@ -2099,6 +2571,10 @@ private struct AccessRecord:
                             symbols[
                                 index %
                                 symbols.count
+                            ],
+                        assetName:
+                            activityImageNames[
+                                (index + snapshotStart) % activityImageNames.count
                             ]
                     )
                 }

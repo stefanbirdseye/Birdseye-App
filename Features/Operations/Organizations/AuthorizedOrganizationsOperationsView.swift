@@ -112,6 +112,7 @@ struct AuthorizedOrganizationsOperationsView: View {
     @State private var page = 0
     @State private var showingAdd = false
     @State private var selectedOrganization: OrganizationRecord?
+    @AppStorage("isExportListEnabled") private var isExportListEnabled = false
 
     private let pageSize = 20
 
@@ -385,14 +386,16 @@ struct AuthorizedOrganizationsOperationsView: View {
                         .tint(.blue)
                     }
 
-                    Section("Actions") {
-                        Button {
-                            // Export action
-                        } label: {
-                            Label(
-                                "Export list",
-                                systemImage: "square.and.arrow.up"
-                            )
+                    if isExportListEnabled {
+                        Section("Actions") {
+                            Button {
+                                // Export action
+                            } label: {
+                                Label(
+                                    "Export list",
+                                    systemImage: "square.and.arrow.up"
+                                )
+                            }
                         }
                     }
                 } label: {

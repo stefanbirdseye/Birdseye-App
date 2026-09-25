@@ -1,5 +1,7 @@
 import SwiftUI
+import PhotosUI
 import UniformTypeIdentifiers
+import UIKit
 
 struct RequestsView: View {
 
@@ -51,22 +53,26 @@ struct RequestsView: View {
         .sheet(item: $activeDraft) { draft in
             RequestClarificationSheet(
                 initialRequest: draft.initialRequest,
+                attachmentNames: draft.attachmentNames,
                 onSend: addRequest
             )
         }
     }
 
-    private func beginRequest() {
+    private func beginRequest(_ attachments: [RequestComposerAttachment]) {
         let trimmedRequest = requestText.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
 
-        guard !trimmedRequest.isEmpty else {
+        guard !trimmedRequest.isEmpty || !attachments.isEmpty else {
             return
         }
 
         HapticFeedback.lightImpact()
-        activeDraft = RequestConversationDraft(initialRequest: trimmedRequest)
+        activeDraft = RequestConversationDraft(
+            initialRequest: trimmedRequest,
+            attachmentNames: attachments.map(\.name)
+        )
         requestText = ""
     }
 
@@ -97,37 +103,53 @@ private struct RequestHero: View {
 private struct RequestComposer: View {
 
     @Binding var text: String
-    let onSubmit: () -> Void
+    let onSubmit: ([RequestComposerAttachment]) -> Void
 
     @FocusState private var isFocused: Bool
+    @State private var attachments: [RequestComposerAttachment] = []
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
+    @State private var isPhotosPickerPresented = false
+    @State private var isFileImporterPresented = false
+    @State private var isCameraPresented = false
 
     private var canSubmit: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "plus")
-                .font(.headline)
-                .foregroundStyle(.primary)
-                .frame(width: 28, height: 28)
-                .background(Color(.secondarySystemBackground), in: Circle())
-
-            TextField("Describe what you need…", text: $text, axis: .vertical)
-                .focused($isFocused)
-                .lineLimit(1...4)
-                .submitLabel(.send)
-                .onSubmit(onSubmit)
-
-            Button(action: onSubmit) {
-                Image(systemName: "arrow.up")
-                    .font(.subheadline.weight(.bold))
-                    .frame(width: 32, height: 32)
-                    .background(canSubmit ? Color.blue : Color.secondary.opacity(0.2), in: Circle())
-                    .foregroundStyle(canSubmit ? Color.white : Color.secondary)
+        VStack(alignment: .leading, spacing: 8) {
+            if !attachments.isEmpty {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 8) {
+                        ForEach(attachments) { attachment in
+                            RequestComposerAttachmentChip(attachment: attachment) {
+                                attachments.removeAll { $0.id == attachment.id }
+                            }
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
             }
-            .disabled(!canSubmit)
-            .accessibilityLabel("Start request")
+
+            HStack(spacing: 12) {
+                attachmentMenu
+
+                TextField("Describe what you need…", text: $text, axis: .vertical)
+                    .focused($isFocused)
+                    .lineLimit(1...4)
+                    .submitLabel(.send)
+                    .onSubmit(submit)
+
+                Button(action: submit) {
+                    Image(systemName: "arrow.up")
+                        .font(.subheadline.weight(.bold))
+                        .frame(width: 32, height: 32)
+                        .background(canSubmit ? Color.blue : Color.secondary.opacity(0.2), in: Circle())
+                        .foregroundStyle(canSubmit ? Color.white : Color.secondary)
+                }
+                .disabled(!canSubmit)
+                .accessibilityLabel("Start request")
+            }
         }
         .padding(10)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22))
@@ -136,6 +158,221 @@ private struct RequestComposer: View {
                 .stroke(Color.blue.opacity(isFocused ? 0.65 : 0.22), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.04), radius: 8, y: 3)
+        .photosPicker(
+            isPresented: $isPhotosPickerPresented,
+            selection: $selectedPhotoItems,
+            maxSelectionCount: nil,
+            matching: .images
+        )
+        .onChange(of: selectedPhotoItems) { _, photoItems in
+            Task {
+                for item in photoItems {
+                    guard let data = try? await item.loadTransferable(type: Data.self),
+                          let image = UIImage(data: data) else {
+                        continue
+                    }
+
+                    addImage(image, namePrefix: "Photo")
+                }
+                selectedPhotoItems = []
+            }
+        }
+        .fileImporter(
+            isPresented: $isFileImporterPresented,
+            allowedContentTypes: [.image, .pdf, .plainText, .data, .movie, .audio],
+            allowsMultipleSelection: true,
+            onCompletion: addFiles
+        )
+        .sheet(isPresented: $isCameraPresented) {
+            RequestCameraPicker { image in
+                addImage(image, namePrefix: "Camera")
+            }
+            .ignoresSafeArea()
+        }
+    }
+
+    private var attachmentMenu: some View {
+        Menu {
+            Button {
+                isCameraPresented = true
+            } label: {
+                Label("Camera", systemImage: "camera")
+            }
+
+            Button {
+                isPhotosPickerPresented = true
+            } label: {
+                Label("Photos", systemImage: "photo.on.rectangle")
+            }
+
+            Button {
+                isFileImporterPresented = true
+            } label: {
+                Label("Files", systemImage: "folder")
+            }
+        } label: {
+            Image(systemName: "plus")
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .frame(width: 28, height: 28)
+                .background(Color(.secondarySystemBackground), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add attachment")
+    }
+
+    private func submit() {
+        guard canSubmit else {
+            return
+        }
+
+        onSubmit(attachments)
+        attachments = []
+    }
+
+    private func addFiles(_ result: Result<[URL], Error>) {
+        guard case let .success(urls) = result else {
+            return
+        }
+
+        for url in urls {
+            let canAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if canAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            attachments.append(
+                RequestComposerAttachment(
+                    name: url.lastPathComponent,
+                    thumbnail: UIImage(contentsOfFile: url.path),
+                    systemImage: RequestComposerAttachment.icon(for: url)
+                )
+            )
+        }
+    }
+
+    private func addImage(_ image: UIImage, namePrefix: String) {
+        attachments.append(
+            RequestComposerAttachment(
+                name: "\(namePrefix) \(attachments.count + 1).jpg",
+                thumbnail: image,
+                systemImage: "photo"
+            )
+        )
+    }
+}
+
+private struct RequestComposerAttachment: Identifiable {
+    let id = UUID()
+    let name: String
+    let thumbnail: UIImage?
+    let systemImage: String
+
+    static func icon(for url: URL) -> String {
+        guard let type = UTType(filenameExtension: url.pathExtension) else {
+            return "doc"
+        }
+
+        if type.conforms(to: .image) {
+            return "photo"
+        }
+        if type.conforms(to: .pdf) {
+            return "doc.richtext"
+        }
+        if type.conforms(to: .movie) {
+            return "video"
+        }
+        if type.conforms(to: .audio) {
+            return "waveform"
+        }
+        return "doc"
+    }
+}
+
+private struct RequestComposerAttachmentChip: View {
+
+    let attachment: RequestComposerAttachment
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let thumbnail = attachment.thumbnail {
+                Image(uiImage: thumbnail)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 30, height: 30)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            } else {
+                Image(systemName: attachment.systemImage)
+                    .font(.subheadline.weight(.medium))
+                    .frame(width: 26, height: 26)
+            }
+
+            Text(attachment.name)
+                .font(.subheadline)
+                .lineLimit(1)
+
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 17))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(attachment.name)")
+        }
+        .padding(.leading, 8)
+        .padding(.trailing, 8)
+        .frame(height: 38)
+        .background(Color(.tertiarySystemBackground), in: Capsule())
+    }
+}
+
+private struct RequestCameraPicker: UIViewControllerRepresentable {
+
+    let onImagePicked: (UIImage) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera)
+            ? .camera
+            : .photoLibrary
+        picker.delegate = context.coordinator
+        picker.allowsEditing = false
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+
+        let parent: RequestCameraPicker
+
+        init(parent: RequestCameraPicker) {
+            self.parent = parent
+        }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            if let image = info[.originalImage] as? UIImage {
+                parent.onImagePicked(image)
+            }
+            parent.dismiss()
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
+        }
     }
 }
 
@@ -361,6 +598,7 @@ private struct RequestConversationMessageCard: View {
 private struct RequestClarificationSheet: View {
 
     let initialRequest: String
+    let attachmentNames: [String]
     let onSend: (RequestSubmission) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -373,9 +611,11 @@ private struct RequestClarificationSheet: View {
 
     init(
         initialRequest: String,
+        attachmentNames: [String],
         onSend: @escaping (RequestSubmission) -> Void
     ) {
         self.initialRequest = initialRequest
+        self.attachmentNames = attachmentNames
         self.onSend = onSend
         let suggestedType = RequestType.suggested(for: initialRequest)
         _requestTitle = State(
@@ -386,6 +626,7 @@ private struct RequestClarificationSheet: View {
         )
         _selectedType = State(initialValue: suggestedType)
         _requestDescription = State(initialValue: initialRequest)
+        _attachedFileNames = State(initialValue: attachmentNames)
     }
 
     private func sendRequest() {
@@ -734,6 +975,7 @@ private enum RequestTitleGenerator {
 private struct RequestConversationDraft: Identifiable {
     let id = UUID()
     let initialRequest: String
+    let attachmentNames: [String]
 }
 
 private enum RequestStatus: String, CaseIterable {

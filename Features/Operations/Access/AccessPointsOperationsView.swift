@@ -12,6 +12,7 @@ struct AccessPointsOperationsView: View {
     @State private var page = 0
     @State private var showingEditor = false
     @State private var selectedPoint: AccessPointRecord?
+    @AppStorage("isExportListEnabled") private var isExportListEnabled = false
 
     private var filteredPoints: [AccessPointRecord] {
         let matchingPoints = accessPoints.filter {
@@ -111,11 +112,13 @@ struct AccessPointsOperationsView: View {
                         }
                     }
 
-                    Section("Actions") {
-                        Button {
-                            // Export action
-                        } label: {
-                            Label("Export list", systemImage: "square.and.arrow.up")
+                    if isExportListEnabled {
+                        Section("Actions") {
+                            Button {
+                                // Export action
+                            } label: {
+                                Label("Export list", systemImage: "square.and.arrow.up")
+                            }
                         }
                     }
                 } label: {

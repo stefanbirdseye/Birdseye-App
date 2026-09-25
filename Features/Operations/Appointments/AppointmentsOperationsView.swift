@@ -21,6 +21,7 @@ struct AppointmentsOperationsView: View {
     @State private var page = 0
     @State private var showingAdd = false
     @State private var selectedAppointment: AppointmentRecord?
+    @AppStorage("isExportListEnabled") private var isExportListEnabled = false
 
     private let pageSize = 20
 
@@ -299,15 +300,17 @@ struct AppointmentsOperationsView: View {
                         }
                     }
 
-                    Section("Actions") {
+                    if isExportListEnabled {
+                        Section("Actions") {
 
-                        Button {
-                            // Export action
-                        } label: {
-                            Label(
-                                "Export list",
-                                systemImage: "square.and.arrow.up"
-                            )
+                            Button {
+                                // Export action
+                            } label: {
+                                Label(
+                                    "Export list",
+                                    systemImage: "square.and.arrow.up"
+                                )
+                            }
                         }
 
                         if appointmentFilter != .all

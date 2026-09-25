@@ -102,6 +102,7 @@ struct EquipmentOperationsView: View {
     @State private var page = 0
     @State private var showingEditor = false
     @State private var selectedEquipment: EquipmentRecord?
+    @AppStorage("isExportListEnabled") private var isExportListEnabled = false
 
     private let pageSize = 20
 
@@ -347,14 +348,16 @@ struct EquipmentOperationsView: View {
                         }
                     }
 
-                    Section("Actions") {
-                        Button {
-                            // Export action
-                        } label: {
-                            Label(
-                                "Export list",
-                                systemImage: "square.and.arrow.up"
-                            )
+                    if isExportListEnabled {
+                        Section("Actions") {
+                            Button {
+                                // Export action
+                            } label: {
+                                Label(
+                                    "Export list",
+                                    systemImage: "square.and.arrow.up"
+                                )
+                            }
                         }
 
                         if equipmentFilter != .all

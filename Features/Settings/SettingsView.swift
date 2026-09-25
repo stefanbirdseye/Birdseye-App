@@ -176,6 +176,7 @@ struct SettingsView: View {
     @Binding var flow: AppFlow
     let onRestartOnboarding: () -> Void
     @AppStorage("defaultLocation") private var defaultLocation = "Northstar (Oshawa)"
+    @AppStorage("isExportListEnabled") private var isExportListEnabled = false
 
     var body: some View {
         Form {
@@ -216,6 +217,8 @@ struct SettingsView: View {
                     Text("Northstar (Toronto)")
                         .tag("Northstar (Toronto)")
                 }
+
+                Toggle("Enable list exports", isOn: $isExportListEnabled)
             }
 
             Section("Onboarding") {
