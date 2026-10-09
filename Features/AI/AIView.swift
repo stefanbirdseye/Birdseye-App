@@ -1,4 +1,5 @@
 import SwiftUI
+import AVKit
 import UIKit
 import Combine
 
@@ -10,12 +11,24 @@ struct AIView: View {
     @Binding var activeConversationID: UUID?
     @Binding var isThreadPresented: Bool
     @Binding var currentConversationTitle: String
+    @Binding var restoredTutorial: AITutorial?
 
     let onThreadDismiss: () -> Void
     let onAuthorizationExampleSelected: () -> Void
+    let onOpenNow: () -> Void
+    let onMinimizeTutorial: (AITutorial) -> Void
 
     @State private var exampleScrollID: String?
     @State private var isDraggingExamples = false
+    @State private var selectedTutorial: AITutorial?
+    @State private var tutorialDestination: AITutorial?
+    @State private var isStartHereExpanded = true
+    @State private var isCloseOnboardingConfirmationPresented = false
+
+    @AppStorage("onboardingStartHereDismissed") private var isStartHereDismissed = false
+    @AppStorage("onboardingAuthorizedPersonComplete") private var isAuthorizedPersonComplete = false
+    @AppStorage("onboardingCrewComplete") private var isCrewComplete = false
+    @AppStorage("onboardingAIComplete") private var isAIComplete = false
 
     private let exampleAutoScroll = Timer
         .publish(
@@ -77,8 +90,11 @@ struct AIView: View {
         activeConversationID: Binding<UUID?> = .constant(nil),
         isThreadPresented: Binding<Bool> = .constant(false),
         currentConversationTitle: Binding<String> = .constant("New conversation"),
+        restoredTutorial: Binding<AITutorial?> = .constant(nil),
         onThreadDismiss: @escaping () -> Void = {},
-        onAuthorizationExampleSelected: @escaping () -> Void = {}
+        onAuthorizationExampleSelected: @escaping () -> Void = {},
+        onOpenNow: @escaping () -> Void = {},
+        onMinimizeTutorial: @escaping (AITutorial) -> Void = { _ in }
     ) {
         _query = query
         _messages = messages
@@ -86,8 +102,11 @@ struct AIView: View {
         _activeConversationID = activeConversationID
         _isThreadPresented = isThreadPresented
         _currentConversationTitle = currentConversationTitle
+        _restoredTutorial = restoredTutorial
         self.onThreadDismiss = onThreadDismiss
         self.onAuthorizationExampleSelected = onAuthorizationExampleSelected
+        self.onOpenNow = onOpenNow
+        self.onMinimizeTutorial = onMinimizeTutorial
     }
 
     var body: some View {
@@ -107,6 +126,9 @@ struct AIView: View {
                         onNewConversation: startNewConversation
                     )
                 }
+                .navigationDestination(item: $tutorialDestination) { destination in
+                    tutorialDestinationView(for: destination)
+                }
         }
         .onChange(
             of: isThreadPresented
@@ -114,6 +136,14 @@ struct AIView: View {
             if !isPresented {
                 onThreadDismiss()
             }
+        }
+        .onChange(of: restoredTutorial) { _, tutorial in
+            guard let tutorial else {
+                return
+            }
+
+            selectedTutorial = tutorial
+            restoredTutorial = nil
         }
     }
     private var landingContent: some View {
@@ -136,7 +166,7 @@ struct AIView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-                Spacer(minLength: 24)
+                Spacer(minLength: 4)
 
                 exampleSection
             }
@@ -150,33 +180,208 @@ struct AIView: View {
         )
         .birdseyeMainTabPage()
         .toolbarBackground(.visible, for: .navigationBar)
+        .sheet(item: $selectedTutorial) { tutorial in
+            AITutorialDrawer(
+                tutorial: tutorial,
+                isAuthorizedPersonComplete: $isAuthorizedPersonComplete,
+                isCrewComplete: $isCrewComplete,
+                isAIComplete: $isAIComplete,
+                onOpenDestination: openTutorialDestination
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
+        .confirmationDialog(
+            "Close onboarding?",
+            isPresented: $isCloseOnboardingConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Close onboarding", role: .destructive) {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isStartHereDismissed = true
+                }
+            }
+        } message: {
+            Text("You can restore onboarding at any time in Settings.")
+        }
+    }
+
+    private func openTutorialDestination(_ tutorial: AITutorial) {
+        selectedTutorial = nil
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            switch tutorial {
+            case .authorizeDriver:
+                onOpenNow()
+            case .askAI:
+                query = "Help me get started with Birdseye AI."
+            case .inviteTeam:
+                tutorialDestination = tutorial
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func tutorialDestinationView(for tutorial: AITutorial) -> some View {
+        switch tutorial {
+        case .authorizeDriver:
+            AuthorizedPeopleOperationsView(startsPersonTutorial: true)
+        case .inviteTeam:
+            TeamView()
+        case .askAI:
+            EmptyView()
+        }
     }
 
     // MARK: - Examples
 
     private var exampleSection: some View {
-        VStack(
-            alignment: .leading,
-            spacing: 10
-        ) {
-            HStack {
+        VStack(alignment: .leading, spacing: 14) {
+            if !isStartHereDismissed {
+                HStack(spacing: 10) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isStartHereExpanded.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "lightbulb.min")
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .symbolRenderingMode(.hierarchical)
+                                .tint(.blue)
+
+                            Text("Start here")
+                                .font(.title3.weight(.bold))
+                                .foregroundStyle(.primary)
+
+                            Text("\(completedTutorialCount)/\(AITutorial.allCases.count)")
+                                .font(.subheadline.weight(.semibold).monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 5)
+                                .background(.secondary.opacity(0.12), in: Capsule())
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Start here, \(completedTutorialCount) of \(AITutorial.allCases.count) complete")
+                    .accessibilityHint(isStartHereExpanded ? "Collapses tutorials" : "Expands tutorials")
+
+                    Spacer()
+
+                    if completedTutorialCount == AITutorial.allCases.count {
+                        Button {
+                            isCloseOnboardingConfirmationPresented = true
+                        } label: {
+                            Label("Complete", systemImage: "checkmark")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 9)
+                                .background(Color.green, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Complete onboarding")
+                    } else {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isStartHereExpanded.toggle()
+                            }
+                        } label: {
+                            Image(systemName: "chevron.down")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .rotationEffect(.degrees(isStartHereExpanded ? 180 : 0))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(isStartHereExpanded ? "Collapse tutorials" : "Expand tutorials")
+                    }
+                }
+
+                if isStartHereExpanded {
+                    ScrollViewReader { proxy in
+                        ScrollView(.horizontal) {
+                            LazyHStack(spacing: 14) {
+                                ForEach(AITutorial.allCases) { tutorial in
+                                    AITutorialCard(
+                                        tutorial: tutorial,
+                                        isComplete: completionBinding(for: tutorial),
+                                        onOpen: {
+                                            selectedTutorial = tutorial
+                                        }
+                                    )
+                                    .id(tutorial)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                        .scrollIndicators(.hidden)
+                        .onAppear {
+                            scrollTutorials(to: proxy)
+                        }
+                        .onChange(of: completedTutorialCount) { _, _ in
+                            scrollTutorials(to: proxy)
+                        }
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
                 Text("Try these examples")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
 
-            }
-
-            ForEach(examples.prefix(3)) { example in
-                Button {
-                    query = example.title
-                    if example.id == "people" {
-                        onAuthorizationExampleSelected()
+                ForEach(examples.prefix(3)) { example in
+                    Button {
+                        query = example.title
+                        if example.id == "people" {
+                            onAuthorizationExampleSelected()
+                        }
+                    } label: {
+                        AIExampleCard(example: example)
                     }
-                } label: {
-                    AIExampleCard(example: example)
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .padding(.top, 10)
+        }
+    }
+
+    private var completedTutorialCount: Int {
+        [
+            isAuthorizedPersonComplete,
+            isCrewComplete,
+            isAIComplete
+        ].filter { $0 }.count
+    }
+
+    private var firstIncompleteTutorial: AITutorial? {
+        AITutorial.allCases.first { tutorial in
+            !completionBinding(for: tutorial).wrappedValue
+        }
+    }
+
+    private func scrollTutorials(to proxy: ScrollViewProxy) {
+        guard let tutorial = firstIncompleteTutorial else {
+            return
+        }
+
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.7)) {
+                proxy.scrollTo(tutorial, anchor: .leading)
+            }
+        }
+    }
+
+    private func completionBinding(for tutorial: AITutorial) -> Binding<Bool> {
+        switch tutorial {
+        case .authorizeDriver:
+            return $isAuthorizedPersonComplete
+        case .inviteTeam:
+            return $isCrewComplete
+        case .askAI:
+            return $isAIComplete
         }
     }
     
@@ -457,6 +662,381 @@ struct AIView: View {
     }
 }
 
+
+// MARK: - AI Tutorials
+
+struct AITutorialStep {
+    let title: String
+    let detail: String
+}
+
+enum AITutorial: String, CaseIterable, Identifiable {
+    case authorizeDriver
+    case inviteTeam
+    case askAI
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .authorizeDriver: "Authorize a driver"
+        case .inviteTeam: "Invite your team"
+        case .askAI: "Ask AI to do anything"
+        }
+    }
+
+    var duration: String { "10 sec" }
+
+    var thumbnailSymbol: String {
+        switch self {
+        case .authorizeDriver: "person.badge.plus"
+        case .inviteTeam: "person.2.badge.plus"
+        case .askAI: "sparkles"
+        }
+    }
+
+    var steps: [AITutorialStep] {
+        switch self {
+        case .authorizeDriver:
+            [
+                AITutorialStep(
+                    title: "Open the People page",
+                    detail: "Tap Add (+) to add a new person."
+                ),
+                AITutorialStep(
+                    title: "Enter driver's full name",
+                    detail: "The full name is the only required field."
+                ),
+                AITutorialStep(
+                    title: "Review their access",
+                    detail: "Choose which locations the driver can access, then tap Save."
+                )
+            ]
+        case .inviteTeam:
+            [
+                AITutorialStep(title: "Open Team", detail: "Go to the Team page."),
+                AITutorialStep(title: "Invite a member", detail: "Select Invite member."),
+                AITutorialStep(title: "Choose a role", detail: "Send their invitation.")
+            ]
+        case .askAI:
+            [
+                AITutorialStep(title: "Open Birdseye AI", detail: "Start a new request."),
+                AITutorialStep(title: "Describe your task", detail: "Use everyday language."),
+                AITutorialStep(title: "Review the result", detail: "Continue the conversation if needed.")
+            ]
+        }
+    }
+
+    var article: String {
+        switch self {
+        case .authorizeDriver:
+            "Add a driver to the list of people authorized to enter your locations."
+        case .inviteTeam:
+            "Bring the people who run your operation into Birdseye. Invite teammates so they can manage people, view yard activity, and keep daily work moving."
+        case .askAI:
+            "Tell Birdseye AI what you need in plain language. It can help you find records, review activity, and start common tasks without digging through screens."
+        }
+    }
+}
+
+private struct AITutorialCard: View {
+    let tutorial: AITutorial
+    @Binding var isComplete: Bool
+    let onOpen: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                LinearGradient(
+                    colors: [.blue.opacity(0.9), .blue.opacity(0.58)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+
+                Image(systemName: tutorial.thumbnailSymbol)
+                    .font(.system(size: 36, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(8)
+            }
+            .frame(width: 92, height: 92)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text(tutorial.title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                Text(tutorial.duration)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Button {
+                    isComplete.toggle()
+                    HapticFeedback.lightImpact()
+                } label: {
+                    Label(
+                        isComplete ? "Done" : "Mark done",
+                        systemImage: isComplete ? "checkmark.circle.fill" : "circle"
+                    )
+                    .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(isComplete ? .green : .blue)
+                .accessibilityLabel(isComplete ? "Mark \(tutorial.title) as not done" : "Mark \(tutorial.title) as done")
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .frame(width: 274, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .onTapGesture(perform: onOpen)
+        .accessibilityElement(children: .contain)
+        .accessibilityHint("Opens the tutorial")
+    }
+
+}
+
+private struct AITutorialDrawer: View {
+    @Binding var isAuthorizedPersonComplete: Bool
+    @Binding var isCrewComplete: Bool
+    @Binding var isAIComplete: Bool
+    let onOpenDestination: (AITutorial) -> Void
+
+    @State private var selectedTutorial: AITutorial
+    @Environment(\.dismiss) private var dismiss
+
+    init(
+        tutorial: AITutorial,
+        isAuthorizedPersonComplete: Binding<Bool>,
+        isCrewComplete: Binding<Bool>,
+        isAIComplete: Binding<Bool>,
+        onOpenDestination: @escaping (AITutorial) -> Void
+    ) {
+        _selectedTutorial = State(initialValue: tutorial)
+        _isAuthorizedPersonComplete = isAuthorizedPersonComplete
+        _isCrewComplete = isCrewComplete
+        _isAIComplete = isAIComplete
+        self.onOpenDestination = onOpenDestination
+    }
+
+    var body: some View {
+        NavigationStack {
+            TabView(selection: $selectedTutorial) {
+                ForEach(AITutorial.allCases) { tutorial in
+                    AITutorialPage(
+                        tutorial: tutorial,
+                        isComplete: completionBinding(for: tutorial),
+                        isSelected: selectedTutorial == tutorial,
+                        selectedTutorial: $selectedTutorial,
+                        onOpenDestination: onOpenDestination
+                    )
+                    .tag(tutorial)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .navigationTitle("Getting started")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func completionBinding(for tutorial: AITutorial) -> Binding<Bool> {
+        switch tutorial {
+        case .authorizeDriver:
+            return $isAuthorizedPersonComplete
+        case .inviteTeam:
+            return $isCrewComplete
+        case .askAI:
+            return $isAIComplete
+        }
+    }
+}
+
+private struct AITutorialPage: View {
+    let tutorial: AITutorial
+    @Binding var isComplete: Bool
+    let isSelected: Bool
+    @Binding var selectedTutorial: AITutorial
+    let onOpenDestination: (AITutorial) -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                AITutorialVideoPlayer(
+                    tutorial: tutorial,
+                    isSelected: isSelected
+                )
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(tutorial.title)
+                        .font(.title.bold())
+
+                    Text(tutorial.article)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Steps")
+                        .font(.headline)
+
+                    ForEach(Array(tutorial.steps.enumerated()), id: \.offset) { index, step in
+                        HStack(alignment: .top, spacing: 12) {
+                            Text("\(index + 1)")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 28, height: 28)
+                                .background(.blue, in: Circle())
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(step.title)
+                                    .font(.subheadline.weight(.semibold))
+
+                                Text(step.detail)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+
+                destinationLink
+
+                Button {
+                    isComplete.toggle()
+                    HapticFeedback.lightImpact()
+                } label: {
+                    Label(
+                        isComplete ? "Marked as done" : "Mark as done",
+                        systemImage: isComplete ? "checkmark.circle.fill" : "checkmark.circle"
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 40)
+                }
+                .buttonStyle(.bordered)
+                .tint(isComplete ? .green : .blue)
+
+                tutorialPagination
+            }
+            .padding(20)
+            .padding(.bottom, 24)
+        }
+    }
+
+    private var destinationTitle: String {
+        switch tutorial {
+        case .authorizeDriver: "Open Now"
+        case .inviteTeam: "Open Team"
+        case .askAI: "Open Birdseye AI"
+        }
+    }
+
+    private var destinationImage: String {
+        switch tutorial {
+        case .authorizeDriver, .inviteTeam: "person.2"
+        case .askAI: "sparkles"
+        }
+    }
+
+    private var destinationLink: some View {
+        Button {
+            onOpenDestination(tutorial)
+        } label: {
+            Label(destinationTitle, systemImage: destinationImage)
+                .frame(maxWidth: .infinity, minHeight: 40)
+        }
+        .buttonStyle(.borderedProminent)
+    }
+
+    private var tutorialPagination: some View {
+        HStack(spacing: 8) {
+            ForEach(AITutorial.allCases) { page in
+                Button {
+                    selectedTutorial = page
+                } label: {
+                    Capsule()
+                        .fill(page == tutorial ? Color.blue : Color.secondary.opacity(0.3))
+                        .frame(width: page == tutorial ? 18 : 6, height: 6)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Show \(page.title) tutorial")
+                .accessibilityAddTraits(page == tutorial ? .isSelected : [])
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 4)
+    }
+}
+
+private struct AITutorialVideoPlayer: View {
+    let tutorial: AITutorial
+    let isSelected: Bool
+    @State private var player: AVPlayer?
+
+    init(tutorial: AITutorial, isSelected: Bool) {
+        self.tutorial = tutorial
+        self.isSelected = isSelected
+        let videoURL = Bundle.main.url(
+            forResource: "TutorialPlaceholder",
+            withExtension: "mp4"
+        )
+        let player = videoURL.map { AVPlayer(url: $0) }
+        player?.isMuted = false
+        _player = State(initialValue: player)
+    }
+
+    var body: some View {
+        Group {
+            if let player {
+                VideoPlayer(player: player)
+                    .onAppear {
+                        updatePlayback(for: player)
+                    }
+                    .onChange(of: isSelected) { _, _ in
+                        updatePlayback(for: player)
+                    }
+                    .onDisappear {
+                        player.pause()
+                    }
+            } else {
+                LinearGradient(
+                    colors: [.blue.opacity(0.9), .cyan.opacity(0.62), .indigo.opacity(0.82)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .overlay {
+                    Text("10-second tutorial video coming soon")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                }
+            }
+        }
+        .aspectRatio(16.0 / 9.0, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .accessibilityLabel("Video for \(tutorial.title)")
+    }
+
+    private func updatePlayback(for player: AVPlayer) {
+        if isSelected {
+            player.play()
+        } else {
+            player.pause()
+        }
+    }
+}
 
 // MARK: - AI Example
 

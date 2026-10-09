@@ -103,7 +103,7 @@ struct AccessPolicyEditorView: View {
                         dismiss()
                     }
                     .tint(.blue)
-                    .backgroundStyle(Color.white)
+                    .tipViewStyle(OnboardingTipViewStyle())
                     .listRowBackground(Color.clear)
                     .task {
                         await AccessPolicyFieldsTutorialTip().resetEligibility()
@@ -784,4 +784,3 @@ struct AccessPolicyEditorView: View {
 
 
 // MARK: - Access Policy Summary Chip
-

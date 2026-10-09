@@ -57,7 +57,6 @@ struct HomeView: View {
     @AppStorage("hasResetPersonTutorialCompletion") private var hasResetPersonTutorialCompletion = false
     @AppStorage("onboardingOrganizationComplete") private var isOrganizationComplete = false
     @AppStorage("onboardingEquipmentComplete") private var isEquipmentComplete = false
-    @AppStorage("onboardingAppointmentComplete") private var isAppointmentComplete = false
     @AppStorage("onboardingCrewComplete") private var isCrewComplete = false
     @AppStorage("onboardingAIComplete") private var isAIComplete = false
 
@@ -239,7 +238,6 @@ struct HomeView: View {
         [
             true,
             isAuthorizedPersonComplete,
-            isAppointmentComplete,
             isCrewComplete,
             isAIComplete
         ]
@@ -248,7 +246,6 @@ struct HomeView: View {
     private func restartOnboardingSteps() {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
             isAuthorizedPersonComplete = false
-            isAppointmentComplete = false
             isCrewComplete = false
             isAIComplete = false
         }
@@ -272,11 +269,6 @@ struct HomeView: View {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
                 isPersonTutorialActive = true
             }
-        case .appointment:
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
-                isAppointmentComplete = true
-            }
-            activeCreateSheet = .appointment
         case .crew:
             withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
                 isCrewComplete = true
@@ -294,7 +286,6 @@ struct HomeView: View {
 private enum OnboardingTask: CaseIterable, Identifiable, Hashable {
     case workspace
     case authorizedPerson
-    case appointment
     case crew
     case ai
 
@@ -304,7 +295,6 @@ private enum OnboardingTask: CaseIterable, Identifiable, Hashable {
         switch self {
         case .workspace: "Join your workspace"
         case .authorizedPerson: "Authorize a driver"
-        case .appointment: "Schedule an appointment"
         case .crew: "Invite your team"
         case .ai: "Ask AI to do anything."
         }
@@ -314,7 +304,6 @@ private enum OnboardingTask: CaseIterable, Identifiable, Hashable {
         switch self {
         case .workspace: "Workspace"
         case .authorizedPerson: "People"
-        case .appointment: "Appointments"
         case .crew: "Team"
         case .ai: "Birdseye AI"
         }
@@ -324,7 +313,6 @@ private enum OnboardingTask: CaseIterable, Identifiable, Hashable {
         switch self {
         case .workspace: "Your workspace is ready."
         case .authorizedPerson: "Add a regular driver to your list."
-        case .appointment: "Know who’s arriving and when."
         case .crew: "Bring teammates in and set their access."
         case .ai: "Try Birdseye AI"
         }
@@ -334,7 +322,6 @@ private enum OnboardingTask: CaseIterable, Identifiable, Hashable {
         switch self {
         case .workspace: "checkmark.circle.fill"
         case .authorizedPerson: "person.badge.plus"
-        case .appointment: "calendar.badge.clock"
         case .crew: "person.3.fill"
         case .ai: "sparkles"
         }
@@ -344,7 +331,6 @@ private enum OnboardingTask: CaseIterable, Identifiable, Hashable {
         switch self {
         case .workspace: .green
         case .authorizedPerson: .blue
-        case .appointment: .purple
         case .crew: .teal
         case .ai: .pink
         }
@@ -834,7 +820,7 @@ private struct LocationDashboardContent: View {
                     onAdd(.person)
                 }
                 .tint(.blue)
-                .backgroundStyle(Color.white)
+                .tipViewStyle(OnboardingTipViewStyle())
             }
 
             MetricGrid(
@@ -902,7 +888,8 @@ private struct MetricGrid: View {
                 newValue: Int.random(in: 1...5),
                 systemImage: "person.fill",
                 tint: .blue,
-                destination: AuthorizedPeopleOperationsView(),
+                destination: AuthorizedPeopleOperationsView()
+                    .permissionProtected(.authorizedPeople),
                 isHighlighted: isPersonTutorialActive,
                 onAdd: { onAdd(.person) }
             )
@@ -913,7 +900,8 @@ private struct MetricGrid: View {
                 newValue: Int.random(in: 1...5),
                 systemImage: "building.2.fill",
                 tint: .blue,
-                destination: AuthorizedOrganizationsOperationsView(),
+                destination: AuthorizedOrganizationsOperationsView()
+                    .permissionProtected(.authorizedOrganizations),
                 isHighlighted: false,
                 onAdd: { onAdd(.organization) }
             )
@@ -924,7 +912,8 @@ private struct MetricGrid: View {
                 newValue: Int.random(in: 1...5),
                 systemImage: "truck.box.fill",
                 tint: .blue,
-                destination: EquipmentOperationsView(),
+                destination: EquipmentOperationsView()
+                    .permissionProtected(.authorizedEquipment),
                 isHighlighted: false,
                 onAdd: { onAdd(.equipment) }
             )
@@ -935,7 +924,8 @@ private struct MetricGrid: View {
                 newValue: Int.random(in: 1...5),
                 systemImage: "calendar",
                 tint: .blue,
-                destination: AppointmentsOperationsView(),
+                destination: AppointmentsOperationsView()
+                    .permissionProtected(.appointments),
                 isHighlighted: false,
                 onAdd: { onAdd(.appointment) }
             )
@@ -1121,6 +1111,7 @@ private struct AccessRecordsSummaryCard: View {
 
                 NavigationLink {
                     AccessRecordsView()
+                        .permissionProtected(.activity)
                 } label: {
                     Image(systemName: "chevron.right")
                         .font(.subheadline.weight(.semibold))
@@ -1206,6 +1197,7 @@ private struct InventorySummaryCard: View {
 
                 NavigationLink {
                     InventoryOperationsView()
+                        .permissionProtected(.inventoryList)
                 } label: {
                     Image(systemName: "chevron.right")
                         .font(.subheadline.weight(.semibold))

@@ -1362,6 +1362,7 @@ private struct LocationPermissionView: View {
 
 private struct FeaturePermissionRow: View {
 
+    @Environment(PermissionStore.self) private var permissionStore
     @Binding var permission: FeaturePermission
 
     var body: some View {
@@ -1429,6 +1430,13 @@ private struct FeaturePermissionRow: View {
                         permission.access =
 
                             level
+
+                        if let appPermission = AppPermission(rawValue: permission.feature.rawValue) {
+                            permissionStore.setAccess(
+                                AppAccessLevel(rawValue: level.rawValue) ?? .full,
+                                for: appPermission
+                            )
+                        }
 
                     } label: {
 

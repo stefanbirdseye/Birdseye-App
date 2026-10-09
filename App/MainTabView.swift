@@ -49,6 +49,7 @@ struct MainTabView: View {
     @State private var searchActivity = SearchActivity()
     @State private var pageContextStore = PageContextStore()
     @State private var aiComposerStore = AIComposerStore()
+    @State private var permissionStore = PermissionStore()
 
     @FocusState private var isComposerFocused: Bool
 
@@ -213,6 +214,7 @@ struct MainTabView: View {
         .environment(searchActivity)
         .environment(pageContextStore)
         .environment(aiComposerStore)
+        .environment(permissionStore)
         .onReceive(
             NotificationCenter.default.publisher(
                 for: .birdseyeOpenConversationHistory
@@ -258,6 +260,9 @@ struct MainTabView: View {
                                 .authorizationSamples
 
                         isComposerFocused = true
+                    },
+                    onOpenNow: {
+                        selectedTab = .home
                     }
                 )
                 .environment(
@@ -295,6 +300,7 @@ struct MainTabView: View {
                 value: MainTab.team
             ) {
                 TeamView()
+                    .permissionProtected(.usersAndPermissions)
                     .environment(
                         \.horizontalSizeClass,
                         actualHorizontalSizeClass

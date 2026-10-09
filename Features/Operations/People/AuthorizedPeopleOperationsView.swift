@@ -1568,7 +1568,7 @@ struct AddPersonAuthorizationView: View {
                             advanceRequiredFieldTutorial()
                         }
                         .tint(.blue)
-                        .backgroundStyle(Color.white)
+                        .tipViewStyle(OnboardingTipViewStyle())
                     }
 
                     fullNameField
@@ -1589,7 +1589,7 @@ struct AddPersonAuthorizationView: View {
                             openAccessPolicy()
                         }
                         .tint(.blue)
-                        .backgroundStyle(Color.white)
+                        .tipViewStyle(OnboardingTipViewStyle())
                     }
 
                     accessPolicyArea

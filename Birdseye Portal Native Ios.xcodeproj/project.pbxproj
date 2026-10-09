@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		602F3E1F30470E540011864D /* HelpCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 602F3E1E30470E540011864D /* HelpCenterView.swift */; };
+		603183A33077962300D145A0 /* OnboardingTipViewStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 603183A23077962300D145A0 /* OnboardingTipViewStyle.swift */; };
+		603183A53077E38B00D145A0 /* TutorialPlaceholder.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 603183A43077E38B00D145A0 /* TutorialPlaceholder.mp4 */; };
+		603183A73078E03E00D145A0 /* PermissionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 603183A63078E03E00D145A0 /* PermissionStore.swift */; };
 		606405E030650853006DA08B /* RequestsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 606405DF30650853006DA08B /* RequestsView.swift */; };
 		6098844F303C6952003F5D4D /* AccessActivityViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6098842E303C6952003F5D4D /* AccessActivityViews.swift */; };
 		60988450303C6952003F5D4D /* AccessPointsOperationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6098842F303C6952003F5D4D /* AccessPointsOperationsView.swift */; };
@@ -49,6 +52,9 @@
 /* Begin PBXFileReference section */
 		000000000000000000000120 /* Birdseye Portal Native Ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Birdseye Portal Native Ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		602F3E1E30470E540011864D /* HelpCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpCenterView.swift; sourceTree = "<group>"; };
+		603183A23077962300D145A0 /* OnboardingTipViewStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTipViewStyle.swift; sourceTree = "<group>"; };
+		603183A43077E38B00D145A0 /* TutorialPlaceholder.mp4 */ = {isa = PBXFileReference; lastKnownFileType = text; path = TutorialPlaceholder.mp4; sourceTree = "<group>"; };
+		603183A63078E03E00D145A0 /* PermissionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionStore.swift; sourceTree = "<group>"; };
 		606405DF30650853006DA08B /* RequestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestsView.swift; sourceTree = "<group>"; };
 		6098842E303C6952003F5D4D /* AccessActivityViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessActivityViews.swift; sourceTree = "<group>"; };
 		6098842F303C6952003F5D4D /* AccessPointsOperationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessPointsOperationsView.swift; sourceTree = "<group>"; };
@@ -134,6 +140,7 @@
 				6098844C303C6952003F5D4D /* SplashView.swift */,
 				60988470303C8EDD003F5D4D /* PageContextStore.swift */,
 				6098844A303C6952003F5D4D /* SearchActivity.swift */,
+				603183A63078E03E00D145A0 /* PermissionStore.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -160,6 +167,7 @@
 				6098848C303EC812003F5D4D /* Snackbar.swift */,
 				6098848E303F0BCB003F5D4D /* EquipmentCategoryIcon.swift */,
 				60E05EF530498E4900FAD917 /* OrganizationPickerField.swift */,
+				603183A23077962300D145A0 /* OnboardingTipViewStyle.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -296,6 +304,7 @@
 			children = (
 				60988435303C6952003F5D4D /* Assets.xcassets */,
 				60E2BBDF303AC4AE00024C44 /* LaunchScreen.storyboard */,
+				603183A43077E38B00D145A0 /* TutorialPlaceholder.mp4 */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -365,6 +374,7 @@
 			isa = PBXResourcesBuildPhase;
 			files = (
 				60AEC1FE303B377600370260 /* NativeAppleAppEngineering.md in Resources */,
+				603183A53077E38B00D145A0 /* TutorialPlaceholder.mp4 in Resources */,
 				6098846F303C6952003F5D4D /* Assets.xcassets in Resources */,
 				60E2BBE0303AC4DC00024C44 /* LaunchScreen.storyboard in Resources */,
 			);
@@ -377,6 +387,7 @@
 			files = (
 				6098844F303C6952003F5D4D /* AccessActivityViews.swift in Sources */,
 				60988450303C6952003F5D4D /* AccessPointsOperationsView.swift in Sources */,
+				603183A73078E03E00D145A0 /* PermissionStore.swift in Sources */,
 				60988451303C6952003F5D4D /* AccessPolicyEditorComponents.swift in Sources */,
 				60988452303C6952003F5D4D /* AccessPolicyEditorView.swift in Sources */,
 				60988454303C6952003F5D4D /* AIView.swift in Sources */,
@@ -392,6 +403,7 @@
 				6098845E303C6952003F5D4D /* ContentView.swift in Sources */,
 				60988460303C6952003F5D4D /* EquipmentOperationsView.swift in Sources */,
 				606405E030650853006DA08B /* RequestsView.swift in Sources */,
+				603183A33077962300D145A0 /* OnboardingTipViewStyle.swift in Sources */,
 				60988461303C6952003F5D4D /* GlobalWorkspaceToolbar.swift in Sources */,
 				60988462303C6952003F5D4D /* HomeView.swift in Sources */,
 				60988463303C6952003F5D4D /* InventoryOperationsView.swift in Sources */,

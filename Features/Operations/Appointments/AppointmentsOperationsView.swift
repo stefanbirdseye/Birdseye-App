@@ -12,6 +12,8 @@ struct AppointmentsOperationsView: View {
     ]
 
     @State private var selectedLocationIndex = 1
+    @State private var selectedStartDate = AppointmentsOperationsView.defaultDateRange.lowerBound
+    @State private var selectedEndDate = AppointmentsOperationsView.defaultDateRange.upperBound
     @State private var searchText = ""
     @State private var isSearchPresented = false
 
@@ -25,10 +27,51 @@ struct AppointmentsOperationsView: View {
 
     private let pageSize = 20
 
+    private static var defaultDateRange: ClosedRange<Date> {
+        let calendar = Calendar.current
+        let startDate = calendar.startOfDay(for: .now)
+        let endDate = calendar.date(
+            byAdding: .day,
+            value: 6,
+            to: startDate
+        ) ?? startDate
+
+        return startDate...endDate
+    }
+
     private var cleanSearch: String {
         searchText.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
+    }
+
+    private var hasCustomDateRange: Bool {
+        let calendar = Calendar.current
+
+        return !calendar.isDate(
+            selectedStartDate,
+            inSameDayAs: Self.defaultDateRange.lowerBound
+        ) || !calendar.isDate(
+            selectedEndDate,
+            inSameDayAs: Self.defaultDateRange.upperBound
+        )
+    }
+
+    private func includesInSelectedDateRange(_ date: Date) -> Bool {
+        let calendar = Calendar.current
+        let startDate = calendar.startOfDay(for: selectedStartDate)
+        let endDate = calendar.date(
+            byAdding: .day,
+            value: 1,
+            to: calendar.startOfDay(for: selectedEndDate)
+        ) ?? selectedEndDate
+
+        return date >= startDate && date < endDate
+    }
+
+    private func resetDateRange() {
+        selectedStartDate = Self.defaultDateRange.lowerBound
+        selectedEndDate = Self.defaultDateRange.upperBound
     }
 
     private var filteredAppointments: [AppointmentRecord] {
@@ -104,6 +147,7 @@ struct AppointmentsOperationsView: View {
             return matchesSearch
                 && matchesLocation
                 && matchesFilter
+                && includesInSelectedDateRange(appointment.date)
         }
 
         switch sortOrder {
@@ -179,14 +223,18 @@ struct AppointmentsOperationsView: View {
                 resultCount: filteredAppointments.count,
                 locations: locations,
                 selectedLocationIndex: $selectedLocationIndex,
+                selectedStartDate: $selectedStartDate,
+                selectedEndDate: $selectedEndDate,
                 page: page,
                 pageSize: pageSize,
                 hasActiveSortOrFilter: appointmentFilter != .all
                     || selectedLocationIndex != 1
+                    || hasCustomDateRange
                     || sortOrder != .appointmentSoonest,
                 onResetSortAndFilters: {
                     appointmentFilter = .all
                     selectedLocationIndex = 1
+                    resetDateRange()
                     sortOrder = .appointmentSoonest
                     page = 0
                 },
@@ -315,6 +363,7 @@ struct AppointmentsOperationsView: View {
 
                         if appointmentFilter != .all
                             || selectedLocationIndex != 1
+                            || hasCustomDateRange
                             || sortOrder != .appointmentSoonest
                         {
 
@@ -322,6 +371,7 @@ struct AppointmentsOperationsView: View {
 
                                 appointmentFilter = .all
                                 selectedLocationIndex = 1
+                                resetDateRange()
                                 sortOrder = .appointmentSoonest
                                 page = 0
 
@@ -338,6 +388,7 @@ struct AppointmentsOperationsView: View {
                     Image(
                         systemName: appointmentFilter != .all
                             || selectedLocationIndex != 1
+                            || hasCustomDateRange
                             || sortOrder != .appointmentSoonest
                             ? "ellipsis.circle.fill"
                             : "ellipsis"
@@ -371,6 +422,12 @@ struct AppointmentsOperationsView: View {
             page = 0
         }
         .onChange(of: selectedLocationIndex) { _, _ in
+            page = 0
+        }
+        .onChange(of: selectedStartDate) { _, _ in
+            page = 0
+        }
+        .onChange(of: selectedEndDate) { _, _ in
             page = 0
         }
         .onChange(of: sortOrder) { _, _ in
@@ -853,6 +910,8 @@ private struct AppointmentsResultsContent: View {
     let locations: [String]
 
     @Binding var selectedLocationIndex: Int
+    @Binding var selectedStartDate: Date
+    @Binding var selectedEndDate: Date
 
     let page: Int
     let pageSize: Int
@@ -888,6 +947,11 @@ private struct AppointmentsResultsContent: View {
                     }
 
                     Spacer()
+
+                    AppointmentDateRangeSwitcher(
+                        startDate: $selectedStartDate,
+                        endDate: $selectedEndDate
+                    )
 
                     AppointmentLocationSwitcher(
                         locations: locations,
@@ -1192,6 +1256,142 @@ extension View {
         } else {
 
             self
+        }
+    }
+}
+
+
+// MARK: - Date Range Switcher
+
+private struct AppointmentDateRangeSwitcher: View {
+
+    @Binding var startDate: Date
+    @Binding var endDate: Date
+
+    @State private var isDateRangePresented = false
+
+    private var isNextSevenDays: Bool {
+        let calendar = Calendar.current
+
+        return calendar.isDateInToday(startDate) &&
+            calendar.dateComponents(
+                [.day],
+                from: calendar.startOfDay(for: startDate),
+                to: calendar.startOfDay(for: endDate)
+            ).day == 6
+    }
+
+    private var title: String {
+        guard !isNextSevenDays else {
+            return "Next 7 days"
+        }
+
+        let startText = startDate.formatted(
+            .dateTime.month(.abbreviated).day()
+        )
+        let endText = endDate.formatted(
+            .dateTime.month(.abbreviated).day()
+        )
+
+        return "\(startText) – \(endText)"
+    }
+
+    var body: some View {
+        Button {
+            isDateRangePresented = true
+        } label: {
+            HStack(spacing: 5) {
+                Text(title)
+                    .lineLimit(1)
+
+                Image(systemName: "calendar")
+                    .font(.caption.weight(.semibold))
+            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(.secondary)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Choose date range")
+        .accessibilityValue(title)
+        .popover(isPresented: $isDateRangePresented, arrowEdge: .top) {
+            AppointmentDateRangePicker(
+                startDate: $startDate,
+                endDate: $endDate
+            )
+            .presentationCompactAdaptation(.popover)
+        }
+    }
+}
+
+private struct AppointmentDateRangePicker: View {
+
+    @Environment(\.dismiss) private var dismiss
+
+    @Binding var startDate: Date
+    @Binding var endDate: Date
+
+    @State private var draftStartDate: Date
+    @State private var draftEndDate: Date
+
+    init(
+        startDate: Binding<Date>,
+        endDate: Binding<Date>
+    ) {
+        _startDate = startDate
+        _endDate = endDate
+        _draftStartDate = State(initialValue: startDate.wrappedValue)
+        _draftEndDate = State(initialValue: endDate.wrappedValue)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Date range")
+                .font(.headline)
+
+            DatePicker(
+                "Start date",
+                selection: $draftStartDate,
+                displayedComponents: .date
+            )
+            .datePickerStyle(.compact)
+
+            DatePicker(
+                "End date",
+                selection: $draftEndDate,
+                displayedComponents: .date
+            )
+            .datePickerStyle(.compact)
+
+            HStack {
+                Button("Reset") {
+                    let calendar = Calendar.current
+                    let startDate = calendar.startOfDay(for: .now)
+
+                    draftStartDate = startDate
+                    draftEndDate = calendar.date(
+                        byAdding: .day,
+                        value: 6,
+                        to: startDate
+                    ) ?? startDate
+                }
+
+                Spacer()
+
+                Button("Apply") {
+                    startDate = draftStartDate
+                    endDate = draftEndDate
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding()
+        .frame(width: 320)
+        .onChange(of: draftStartDate) { _, newStartDate in
+            if draftEndDate < newStartDate {
+                draftEndDate = newStartDate
+            }
         }
     }
 }

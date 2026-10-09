@@ -176,75 +176,26 @@ struct SettingsView: View {
     @Binding var flow: AppFlow
     let onRestartOnboarding: () -> Void
     @AppStorage("defaultLocation") private var defaultLocation = "Northstar (Oshawa)"
-    @AppStorage("isExportListEnabled") private var isExportListEnabled = false
+    @AppStorage("appTheme") private var appTheme = AppTheme.system
 
     var body: some View {
         Form {
 
-            Section("Account") {
-                LabeledContent("Name", value: "Maya Chen")
-                LabeledContent("Email", value: "maya@northstar.com")
-                LabeledContent("Role", value: "Administrator")
+            SettingsPreferencesSection(
+                defaultLocation: $defaultLocation,
+                appTheme: $appTheme
+            )
 
-                LabeledContent(
-                    "Organization",
-                    value: "Northstar Operations"
-                )
-            }
+            SettingsSupportSection()
 
-            Section("Preferences") {
+            SettingsAdvancedFeaturesSection()
 
-                Toggle(
-                    "Operational notifications",
-                    isOn: .constant(true)
-                )
-
-                Toggle(
-                    "Daily activity summary",
-                    isOn: .constant(true)
-                )
-
-                Picker(
-                    "Default location",
-                    selection: $defaultLocation
-                ) {
-                    Text("Northstar (Oshawa)")
-                        .tag("Northstar (Oshawa)")
-
-                    Text("Northstar (Dallas)")
-                        .tag("Northstar (Dallas)")
-
-                    Text("Northstar (Toronto)")
-                        .tag("Northstar (Toronto)")
-                }
-
-                Toggle("Enable list exports", isOn: $isExportListEnabled)
-            }
-
-            Section("Onboarding") {
-                Button("Restart onboarding steps") {
-                    restartOnboarding()
-                }
-            }
-
-            Section("Support") {
-
-                NavigationLink {
-                    HelpView()
-                } label: {
-                    Label(
-                        "Help Center",
-                        systemImage: "questionmark.circle"
-                    )
-                }
-
-                LabeledContent("Version", value: "1.0")
-            }
+            SettingsOnboardingSection(
+                onRestoreOnboarding: restoreOnboarding,
+                onRestartOnboarding: restartOnboarding
+            )
         }
         .navigationTitle("Settings")
-        .toolbar {
-            GlobalWorkspaceToolbar()
-        }
     }
 
     private func restartOnboarding() {
@@ -252,11 +203,91 @@ struct SettingsView: View {
         UserDefaults.standard.set(false, forKey: "onboardingAuthorizedPersonComplete")
         UserDefaults.standard.set(false, forKey: "onboardingOrganizationComplete")
         UserDefaults.standard.set(false, forKey: "onboardingEquipmentComplete")
-        UserDefaults.standard.set(false, forKey: "onboardingAppointmentComplete")
         UserDefaults.standard.set(false, forKey: "onboardingCrewComplete")
         UserDefaults.standard.set(false, forKey: "onboardingAIComplete")
+        UserDefaults.standard.set(false, forKey: "onboardingStartHereDismissed")
         UserDefaults.standard.set(false, forKey: "hasDismissedOnboardingChecklist")
         onRestartOnboarding()
+    }
+
+    private func restoreOnboarding() {
+        UserDefaults.standard.set(false, forKey: "onboardingStartHereDismissed")
+    }
+}
+
+private struct SettingsPreferencesSection: View {
+
+    @Binding var defaultLocation: String
+    @Binding var appTheme: AppTheme
+
+    var body: some View {
+        Section("Preferences") {
+            Picker("Default location", selection: $defaultLocation) {
+                Text("Northstar (Oshawa)")
+                    .tag("Northstar (Oshawa)")
+
+                Text("Northstar (Dallas)")
+                    .tag("Northstar (Dallas)")
+
+                Text("Northstar (Toronto)")
+                    .tag("Northstar (Toronto)")
+            }
+
+            Picker("Theme", selection: $appTheme) {
+                ForEach(AppTheme.allCases, id: \.self) { theme in
+                    Text(theme.title)
+                        .tag(theme)
+                }
+            }
+        }
+    }
+}
+
+private struct SettingsSupportSection: View {
+
+    var body: some View {
+        Section("Support") {
+            NavigationLink {
+                HelpView()
+            } label: {
+                Label(
+                    "Help Center",
+                    systemImage: "questionmark.circle"
+                )
+            }
+
+            LabeledContent("Version", value: "1.0")
+        }
+    }
+}
+
+private struct SettingsAdvancedFeaturesSection: View {
+
+    var body: some View {
+        Section("Advanced features") {
+            LabeledContent("Enable list exports") {
+                Text("Work in progress")
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct SettingsOnboardingSection: View {
+
+    let onRestoreOnboarding: () -> Void
+    let onRestartOnboarding: () -> Void
+
+    var body: some View {
+        Section("Onboarding") {
+            Button("Restore onboarding") {
+                onRestoreOnboarding()
+            }
+
+            Button("Restart onboarding steps") {
+                onRestartOnboarding()
+            }
+        }
     }
 }
 

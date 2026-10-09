@@ -11,6 +11,8 @@ struct AccessRecordsView: View {
     @State private var isSearchPresented = false
 
     @State private var selectedLocationIndex = 0
+    @State private var selectedStartDate = AccessRecordsView.defaultDateRange.lowerBound
+    @State private var selectedEndDate = AccessRecordsView.defaultDateRange.upperBound
     @State private var selectedRecord: AccessRecord?
 
     @State private var directionFilter: AccessDirectionFilter = .all
@@ -30,10 +32,51 @@ struct AccessRecordsView: View {
         "Northstar (Toronto)"
     ]
 
+    private static var defaultDateRange: ClosedRange<Date> {
+        let calendar = Calendar.current
+        let endDate = calendar.startOfDay(for: .now)
+        let startDate = calendar.date(
+            byAdding: .day,
+            value: -6,
+            to: endDate
+        ) ?? endDate
+
+        return startDate...endDate
+    }
+
     private var cleanSearch: String {
         searchText.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
+    }
+
+    private var hasCustomDateRange: Bool {
+        let calendar = Calendar.current
+
+        return !calendar.isDate(
+            selectedStartDate,
+            inSameDayAs: Self.defaultDateRange.lowerBound
+        ) || !calendar.isDate(
+            selectedEndDate,
+            inSameDayAs: Self.defaultDateRange.upperBound
+        )
+    }
+
+    private func includesInSelectedDateRange(_ date: Date) -> Bool {
+        let calendar = Calendar.current
+        let startDate = calendar.startOfDay(for: selectedStartDate)
+        let endDate = calendar.date(
+            byAdding: .day,
+            value: 1,
+            to: calendar.startOfDay(for: selectedEndDate)
+        ) ?? selectedEndDate
+
+        return date >= startDate && date < endDate
+    }
+
+    private func resetDateRange() {
+        selectedStartDate = Self.defaultDateRange.lowerBound
+        selectedEndDate = Self.defaultDateRange.upperBound
     }
 
     private var filteredRecords: [AccessRecord] {
@@ -90,13 +133,15 @@ struct AccessRecordsView: View {
                 record.vehicleType == vehicleTypeFilter
 
             let matchesTime = timeFilter.includes(record.date)
+            let matchesDateRange = includesInSelectedDateRange(record.date)
 
             return
                 matchesSearch &&
                 matchesLocation &&
                 matchesDirection &&
                 matchesVehicle &&
-                matchesTime
+                matchesTime &&
+                matchesDateRange
         }
 
         switch sortOrder {
@@ -169,18 +214,22 @@ struct AccessRecordsView: View {
                 locations: locations,
                 selectedLocationIndex:
                     $selectedLocationIndex,
+                selectedStartDate: $selectedStartDate,
+                selectedEndDate: $selectedEndDate,
                 page: page,
                 pageSize: pageSize,
                 hasActiveSortOrFilter: directionFilter != .all
                     || selectedLocationIndex != 0
                     || vehicleTypeFilter != nil
                     || timeFilter != .all
+                    || hasCustomDateRange
                     || sortOrder != .newest,
                 onResetSortAndFilters: {
                     directionFilter = .all
                     selectedLocationIndex = 0
                     vehicleTypeFilter = nil
                     timeFilter = .all
+                    resetDateRange()
                     sortOrder = .newest
                     page = 0
                 },
@@ -345,6 +394,7 @@ struct AccessRecordsView: View {
                         selectedLocationIndex != 0 ||
                         vehicleTypeFilter != nil ||
                         timeFilter != .all ||
+                        hasCustomDateRange ||
                         sortOrder != .newest
                     {
                         Button {
@@ -352,6 +402,7 @@ struct AccessRecordsView: View {
                             selectedLocationIndex = 0
                             vehicleTypeFilter = nil
                             timeFilter = .all
+                            resetDateRange()
                             sortOrder = .newest
                             page = 0
                         } label: {
@@ -367,6 +418,7 @@ struct AccessRecordsView: View {
                             || selectedLocationIndex != 0
                             || vehicleTypeFilter != nil
                             || timeFilter != .all
+                            || hasCustomDateRange
                             || sortOrder != .newest
                             ? "ellipsis.circle.fill"
                             : "ellipsis"
@@ -445,6 +497,8 @@ private struct AccessRecordsResultsContent: View {
     let locations: [String]
 
     @Binding var selectedLocationIndex: Int
+    @Binding var selectedStartDate: Date
+    @Binding var selectedEndDate: Date
 
     let page: Int
     let pageSize: Int
@@ -485,6 +539,11 @@ private struct AccessRecordsResultsContent: View {
                     }
 
                     Spacer()
+
+                    AccessRecordsDateRangeSwitcher(
+                        startDate: $selectedStartDate,
+                        endDate: $selectedEndDate
+                    )
 
                     AccessRecordsLocationSwitcher(
                         locations:
@@ -1000,6 +1059,144 @@ private struct AccessRecordsLocationSwitcher: View {
         .accessibilityValue(
             locations[selectedIndex]
         )
+    }
+}
+
+
+// MARK: - Date Range Switcher
+
+private struct AccessRecordsDateRangeSwitcher: View {
+
+    @Binding var startDate: Date
+    @Binding var endDate: Date
+
+    @State private var isDateRangePresented = false
+
+    private var isLastSevenDays: Bool {
+        let calendar = Calendar.current
+
+        return calendar.isDateInToday(endDate) &&
+            calendar.dateComponents(
+                [.day],
+                from: calendar.startOfDay(for: startDate),
+                to: calendar.startOfDay(for: endDate)
+            ).day == 6
+    }
+
+    private var title: String {
+        guard !isLastSevenDays else {
+            return "Last 7 days"
+        }
+
+        let startText = startDate.formatted(
+            .dateTime.month(.abbreviated).day()
+        )
+        let endText = endDate.formatted(
+            .dateTime.month(.abbreviated).day()
+        )
+
+        return "\(startText) – \(endText)"
+    }
+
+    var body: some View {
+        Button {
+            isDateRangePresented = true
+        } label: {
+            HStack(spacing: 5) {
+                Text(title)
+                    .lineLimit(1)
+
+                Image(systemName: "calendar")
+                    .font(.caption.weight(.semibold))
+            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(.secondary)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Choose date range")
+        .accessibilityValue(title)
+        .popover(isPresented: $isDateRangePresented, arrowEdge: .top) {
+            AccessRecordsDateRangePicker(
+                startDate: $startDate,
+                endDate: $endDate
+            )
+            .presentationCompactAdaptation(.popover)
+        }
+    }
+}
+
+private struct AccessRecordsDateRangePicker: View {
+
+    @Environment(\.dismiss) private var dismiss
+
+    @Binding var startDate: Date
+    @Binding var endDate: Date
+
+    @State private var draftStartDate: Date
+    @State private var draftEndDate: Date
+
+    init(
+        startDate: Binding<Date>,
+        endDate: Binding<Date>
+    ) {
+        _startDate = startDate
+        _endDate = endDate
+        _draftStartDate = State(initialValue: startDate.wrappedValue)
+        _draftEndDate = State(initialValue: endDate.wrappedValue)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Date range")
+                .font(.headline)
+
+            DatePicker(
+                "Start date",
+                selection: $draftStartDate,
+                in: ...draftEndDate,
+                displayedComponents: .date
+            )
+            .datePickerStyle(.compact)
+
+            DatePicker(
+                "End date",
+                selection: $draftEndDate,
+                in: draftStartDate...Date.now,
+                displayedComponents: .date
+            )
+            .datePickerStyle(.compact)
+
+            HStack {
+                Button("Reset") {
+                    let calendar = Calendar.current
+                    let endDate = calendar.startOfDay(for: .now)
+
+                    draftEndDate = endDate
+                    draftStartDate = calendar.date(
+                        byAdding: .day,
+                        value: -6,
+                        to: endDate
+                    ) ?? endDate
+                }
+
+                Spacer()
+
+                Button("Apply") {
+                    startDate = draftStartDate
+                    endDate = draftEndDate
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding()
+        .frame(width: 280)
+        .onChange(of: draftStartDate) { _, newStartDate in
+            if draftEndDate < newStartDate {
+                draftEndDate = newStartDate
+            }
+        }
     }
 }
 
