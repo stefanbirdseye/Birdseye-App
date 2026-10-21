@@ -33,7 +33,7 @@ struct HelpView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 if searchText.isEmpty {
-                    HelpQuickStartSection()
+                    HelpStartHereSection()
                     HelpAISection()
                 }
                 if filteredTopics.isEmpty {
@@ -113,6 +113,119 @@ private struct HelpWelcomeSection: View {
         .padding(.horizontal, 16)
     }
 }
+private struct HelpStarterGuide: Identifiable {
+    let title: String
+    var id: String { title }
+    let detail: String
+    let systemImage: String
+}
+
+private struct HelpStartHereSection: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    private let guides = [
+        HelpStarterGuide(title: "Authorize a regular driver", detail: "Give a driver, employee, contractor, or visitor access.", systemImage: "person.text.rectangle"),
+        HelpStarterGuide(title: "Invite your team members", detail: "Invite coworkers to manage your workspace together.", systemImage: "person.2.badge.plus"),
+        HelpStarterGuide(title: "Ask AI to do anything", detail: "Use Birdseye AI to find records and start common tasks.", systemImage: "sparkles"),
+        HelpStarterGuide(title: "Send a request to Birdseye", detail: "Ask for footage, a service update, or help from support.", systemImage: "envelope"),
+        HelpStarterGuide(title: "Add an appointment", detail: "Schedule an expected arrival before it reaches your location.", systemImage: "calendar.badge.plus"),
+        HelpStarterGuide(title: "Find anything", detail: "Search people, carriers, equipment, and activity in seconds.", systemImage: "magnifyingglass"),
+        HelpStarterGuide(title: "Review access activity", detail: "Check recent entries and events that need attention.", systemImage: "clock.arrow.circlepath"),
+        HelpStarterGuide(title: "Add equipment", detail: "Keep trailers, vehicles, and other equipment organized.", systemImage: "truck.box"),
+        HelpStarterGuide(title: "Create an access policy", detail: "Set the right entry rules for each person and location.", systemImage: "checkmark.shield")
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 10) {
+                Image(systemName: "lightbulb.min")
+                    .font(.title3.weight(.semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .tint(.blue)
+
+                Text("Start here")
+                    .font(.title3.weight(.bold))
+
+            }
+
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 18) {
+                    ForEach(guides) { guide in
+                        NavigationLink {
+                            HelpStarterGuideDetail(guide: guide)
+                        } label: {
+                            HelpStarterGuideCard(guide: guide)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            .scrollIndicators(.hidden)
+        }
+        .padding(20)
+        .background(
+            colorScheme == .dark ? Color(.secondarySystemGroupedBackground) : .white,
+            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
+        )
+        .padding(.horizontal, 16)
+    }
+}
+
+private struct HelpStarterGuideCard: View {
+    let guide: HelpStarterGuide
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: guide.systemImage)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 72, height: 72)
+                .background(Color.accentColor.opacity(0.14), in: Circle())
+                .overlay {
+                    Circle()
+                        .stroke(Color.accentColor, lineWidth: 3)
+                }
+
+            Text(guide.title)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: 104)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens this guide")
+    }
+}
+
+private struct HelpStarterGuideDetail: View {
+    let guide: HelpStarterGuide
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Image(systemName: guide.systemImage)
+                    .font(.system(size: 42, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+
+                Text(guide.title)
+                    .font(.title.bold())
+
+                Text(guide.detail)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("Start here")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
 private struct HelpQuickStartSection: View {
     private let guideIDs = [
         "add-authorized-person",
@@ -702,17 +815,17 @@ private struct HelpTopic: Identifiable {
         ]),
         HelpTopic(id: "team", title: "Team", summary: "Invite members and manage workspace access.", systemImage: "person.2.fill", tint: .blue, articles: [
             article("invite-team-member", "How to invite a team member", "Invite someone to your Birdseye workspace.", "person.badge.plus", "team", "Team", [
-                .manual("Do it manually", ["Open Team and tap Invite member.", "Enter the member's email address and username.", "Assign organizations, locations, and feature permissions.", "Send the invitation."]),
+                .manual("Do it manually", ["Open Team and tap Invite member.", "Enter the member's email address.", "Assign organizations, locations, and feature permissions.", "Send the invitation."]),
                 .ai("Invite alex.morgan@northstar.com to the team with access to Northstar Dallas."),
                 .faq([("Can I assign multiple locations?", "Yes. Members can have access to multiple locations and organizations."), ("Can I change permissions later?", "Yes. Open their profile and edit Permissions.")])
             ]),
             article("find-team-member", "How to find a team member", "Review members and their current status.", "person.crop.circle", "team", "Team", [
-                .manual("Do it manually", ["Open Team to view workspace members.", "Find the member by username.", "Tap their name to see account details and permissions."]),
+                .manual("Do it manually", ["Open Team to view workspace members.", "Find the member by email address.", "Tap their name to see account details and permissions."]),
                 .ai("Show team members who can access Northstar Dallas.")
             ]),
-            article("edit-team-member", "How to edit a team member", "Update a member's email or username.", "pencil", "team", "Team", [
-                .manual("Do it manually", ["Open Team and select the member.", "Edit their email address or username.", "Save the changes." ]),
-                .ai("Update Sarah Patel's username to sarah.patel.")
+            article("edit-team-member", "How to edit a team member", "Update a member's email address.", "pencil", "team", "Team", [
+                .manual("Do it manually", ["Open Team and select the member.", "Edit their email address.", "Save the changes." ]),
+                .ai("Update Sarah Patel's email address.")
             ]),
             article("change-member-status", "How to activate or deactivate a member", "Choose whether someone can sign in.", "person.crop.circle.badge.xmark", "team", "Team", [
                 .manual("Do it manually", ["Open Team and select a member.", "Use the Status switch to activate or deactivate the account.", "Save if prompted."]),

@@ -282,10 +282,7 @@ struct MainTabView: View {
                         composerText = prompt
                         isComposerFocused = true
                     },
-                    onOpenSettings: openSettings,
-                    onOpenTeam: {
-                        selectedTab = .team
-                    }
+                    onOpenSettings: openSettings
                 )
                 .environment(
                     \.horizontalSizeClass,
@@ -300,7 +297,13 @@ struct MainTabView: View {
                 value: MainTab.team
             ) {
                 TeamView()
-                    .permissionProtected(.usersAndPermissions)
+                    .permissionProtected(
+                        .usersAndPermissions,
+                        pageTitle: MainTab.team.pageTitle,
+                        onGoToBirdseyeAI: {
+                            selectedTab = .ai
+                        }
+                    )
                     .environment(
                         \.horizontalSizeClass,
                         actualHorizontalSizeClass

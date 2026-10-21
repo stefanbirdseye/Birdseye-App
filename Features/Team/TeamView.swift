@@ -7,12 +7,11 @@ struct TeamView: View {
     @Environment(SnackbarCenter.self) private var snackbarCenter
 
     @State private var isInvitePresented = false
+    @State private var teamInvitationEmail = ""
 
     @State private var members = [
 
         TeamMember(
-
-            username: "maya.chen",
 
             email: "maya.chen@northstar.com",
 
@@ -24,8 +23,6 @@ struct TeamView: View {
 
         TeamMember(
 
-            username: "daniel.brooks",
-
             email: "daniel.brooks@northstar.com",
 
             locationCount: 8,
@@ -36,8 +33,6 @@ struct TeamView: View {
 
         TeamMember(
 
-            username: "sarah.patel",
-
             email: "sarah.patel@northstar.com",
 
             locationCount: 4,
@@ -47,8 +42,6 @@ struct TeamView: View {
         ),
 
         TeamMember(
-
-            username: "james.wilson",
 
             email: "james.wilson@northstar.com",
 
@@ -75,38 +68,12 @@ struct TeamView: View {
                 ) {
 
                     BirdseyePageTitle(title: "Team")
-
                         .padding(.top, 16)
 
-                    Button {
-
-                        isInvitePresented = true
-
-                    } label: {
-
-                        Label(
-
-                            "Invite member",
-
-                            systemImage: "person.badge.plus"
-
-                        )
-
-                        .frame(
-
-                            maxWidth: .infinity,
-
-                            minHeight: 40
-
-                        )
-
-                    }
-
-                    .buttonStyle(.glassProminent)
-
-                    .buttonBorderShape(.capsule)
-
-                    .tint(.blue)
+                    InviteTeamActionCard(
+                        invitationEmail: $teamInvitationEmail,
+                        isInvitePresented: $isInvitePresented
+                    )
 
                     workspaceMembers
 
@@ -130,13 +97,11 @@ struct TeamView: View {
 
             .sheet(isPresented: $isInvitePresented) {
 
-                InviteTeamMemberView { email, username, locationCount in
+                InviteTeamMemberView(email: $teamInvitationEmail) { email, locationCount in
 
                     members.append(
 
                         TeamMember(
-
-                            username: username,
 
                             email: email,
 
@@ -149,6 +114,7 @@ struct TeamView: View {
                     )
 
                     snackbarCenter.show("Invitation sent to \(email).")
+                    teamInvitationEmail = ""
 
                 }
 
@@ -268,17 +234,157 @@ struct TeamView: View {
 
 
 
+private struct TeamActionCardCarousel: View {
+
+    let onAuthorizeDriver: () -> Void
+    let onInviteMember: () -> Void
+    let onSendRequest: () -> Void
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            LazyHStack(spacing: 16) {
+                TeamActionCard(
+                    title: "Authorize a driver",
+                    description: "Set up the right access for people who visit your locations.",
+                    iconName: "person.text.rectangle",
+                    actionLabel: "Authorize a driver",
+                    actionIconName: "person.badge.key",
+                    action: onAuthorizeDriver
+                )
+
+                TeamActionCard(
+                    title: "Invite a member",
+                    description: "Manage access, view activity, and submit requests together in Birdseye.",
+                    iconName: "person.2.badge.plus",
+                    actionLabel: "Email address",
+                    actionIconName: "envelope",
+                    action: onInviteMember
+                )
+
+                TeamActionCard(
+                    title: "Send a request to Birdseye",
+                    description: "Tell us what you need and keep track of every update in one place.",
+                    iconName: "paperplane",
+                    actionLabel: "Describe your request",
+                    actionIconName: "text.bubble",
+                    action: onSendRequest
+                )
+            }
+            .scrollTargetLayout()
+            .padding(.horizontal, 16)
+        }
+        .contentMargins(.horizontal, -16, for: .scrollContent)
+        .scrollIndicators(.hidden)
+        .scrollTargetBehavior(.viewAligned)
+        .accessibilityLabel("Team actions")
+    }
+}
+
+private struct TeamActionCard: View {
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    let title: LocalizedStringKey
+    let description: LocalizedStringKey
+    let iconName: String
+    let actionLabel: LocalizedStringKey
+    let actionIconName: String
+    let action: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(title)
+                        .font(.title2.weight(.bold))
+
+                    Text(description)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: iconName)
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.blue)
+                    .frame(width: 80, height: 80)
+                    .background(iconBackground, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+            }
+
+            Spacer(minLength: 0)
+
+            Button(action: action) {
+                HStack(spacing: 14) {
+                    Image(systemName: actionIconName)
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+
+                    Text(actionLabel)
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "arrow.right")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 56, height: 56)
+                        .background(.blue, in: Circle())
+                }
+                .padding(.leading, 18)
+                .padding(.trailing, 12)
+                .frame(maxWidth: .infinity, minHeight: 80)
+                .background(inputBackground, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(title)
+        }
+        .padding(24)
+        .frame(width: 340, height: 310, alignment: .topLeading)
+        .background(cardBackground, in: RoundedRectangle(cornerRadius: 36, style: .continuous))
+    }
+
+    private var cardBackground: Color {
+        colorScheme == .dark
+            ? Color(red: 0.0, green: 0.09, blue: 0.14)
+            : Color(red: 0.88, green: 0.93, blue: 0.99)
+    }
+
+    private var inputBackground: Color {
+        colorScheme == .dark
+            ? Color(red: 0.06, green: 0.07, blue: 0.09)
+            : Color(.systemBackground)
+    }
+
+    private var iconBackground: Color {
+        colorScheme == .dark
+            ? Color(red: 0.0, green: 0.18, blue: 0.30)
+            : Color.blue.opacity(0.14)
+    }
+}
+
+
+
 // MARK: - Invite member
 
-private struct InviteTeamMemberView: View {
+struct InviteTeamMemberView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    let onInvite: (String, String, Int) -> Void
+    let onInvite: (String, Int) -> Void
 
-    @State private var email = ""
+    @Binding var email: String
 
-    @State private var username = ""
+    init(
+        email: Binding<String>,
+        onInvite: @escaping (String, Int) -> Void
+    ) {
+        _email = email
+        self.onInvite = onInvite
+    }
 
     @State private var organizations: [InviteOrganization] = [
 
@@ -306,17 +412,7 @@ private struct InviteTeamMemberView: View {
 
             .isEmpty
 
-        &&
 
-        !username
-
-            .trimmingCharacters(
-
-                in: .whitespacesAndNewlines
-
-            )
-
-            .isEmpty
 
     }
 
@@ -324,7 +420,7 @@ private struct InviteTeamMemberView: View {
 
         organizations.reduce(0) { count, organization in
 
-            count + organization.locations.count
+            count + organization.locations.filter(\.hasGrantedAccess).count
 
         }
 
@@ -414,7 +510,7 @@ private struct InviteTeamMemberView: View {
 
     private var memberDetails: some View {
 
-        TeamMemberDetailsSection(email: $email, username: $username)
+        TeamMemberDetailsSection(email: $email)
 
     }
 
@@ -510,7 +606,7 @@ private struct InviteTeamMemberView: View {
 
     private func sendInvite() {
 
-        onInvite(email, username, locationCount)
+        onInvite(email, locationCount)
 
         dismiss()
 
@@ -660,7 +756,7 @@ private struct OrganizationPermissionCard: View {
 
                     .font(.headline)
 
-                Text(locationNames)
+                Text(locationSummary)
 
                     .font(.subheadline)
 
@@ -756,13 +852,15 @@ private struct OrganizationPermissionCard: View {
 
     }
 
-    private var locationNames: String {
+    private var locationSummary: String {
 
-        organization.locations
+        let locationCount = organization.locations.filter(\.hasGrantedAccess).count
 
-            .map(\.name)
+        return locationCount == 1
 
-            .joined(separator: ", ")
+            ? "1 location"
+
+            : "\(locationCount) locations"
 
     }
 
@@ -904,6 +1002,7 @@ private struct OrganizationPermissionCard: View {
 
 private struct LocationPermissionView: View {
 
+    @Environment(PermissionStore.self) private var permissionStore
     @Binding var location: InviteLocation
 
     let otherLocations: [InviteLocation]
@@ -912,26 +1011,13 @@ private struct LocationPermissionView: View {
 
     let onCopyToAll: () -> Void
 
-    @State private var isExpanded = false
+    @State private var isEditorPresented = false
 
     var body: some View {
 
-        VStack(spacing: 0) {
-
-            locationHeader
-
-            if isExpanded {
-
-                featureList
-
-                    .padding(.horizontal, 12)
-
-                    .padding(.bottom, 12)
-
-                    .transition(.opacity)
-
-            }
-
+        locationHeader
+            .sheet(isPresented: $isEditorPresented) {
+            LocationPermissionEditor(location: $location, isPresented: $isEditorPresented)
         }
 
     }
@@ -940,107 +1026,36 @@ private struct LocationPermissionView: View {
 
         HStack(spacing: 10) {
 
+            VStack(alignment: .leading, spacing: 3) {
+
+                Text(location.name)
+
+                    .font(.subheadline.weight(.semibold))
+
+                Text(location.grantedFeatureSummary)
+
+                    .font(.caption)
+
+                    .foregroundStyle(.secondary)
+
+            }
+
+            Spacer()
+
             Button {
-
-                withAnimation(
-
-                    .easeInOut(duration: 0.2)
-
-                ) {
-
-                    isExpanded.toggle()
-
-                }
-
+                isEditorPresented = true
             } label: {
+                LocationAccessPill(
 
-                HStack(spacing: 12) {
+                    summary:
 
-                    VStack(
-
-                        alignment: .leading,
-
-                        spacing: 3
-
-                    ) {
-
-                        Text(location.name)
-
-                            .font(
-
-                                .subheadline
-
-                                    .weight(.semibold)
-
-                            )
-
-                            .foregroundStyle(
-
-                                .primary
-
-                            )
-
-                        Text(
-
-                            "\(location.permissions.count) features"
-
-                        )
-
-                        .font(.caption)
-
-                        .foregroundStyle(
-
-                            .secondary
-
-                        )
-
-                    }
-
-                    Spacer()
-
-                    Image(
-
-                        systemName:
-
-                            isExpanded
-
-                            ? "chevron.up"
-
-                            : "chevron.down"
-
-                    )
-
-                    .font(
-
-                        .caption.weight(.semibold)
-
-                    )
-
-                    .foregroundStyle(
-
-                        .secondary
-
-                    )
-
-                }
-
-                .contentShape(
-
-                    Rectangle()
+                        location.accessSummary
 
                 )
 
             }
 
             .buttonStyle(.plain)
-
-            LocationAccessPill(
-
-                summary:
-
-                    location.accessSummary
-
-            )
 
             locationMenu
 
@@ -1055,74 +1070,6 @@ private struct LocationPermissionView: View {
     private var locationMenu: some View {
 
         Menu {
-
-            Menu {
-
-                Button {
-
-                    applyPreset(.admin)
-
-                } label: {
-
-                    Label(
-
-                        "Admin",
-
-                        systemImage:
-
-                            "person.badge.key"
-
-                    )
-
-                }
-
-                Button {
-
-                    applyPreset(.manager)
-
-                } label: {
-
-                    Label(
-
-                        "Manager",
-
-                        systemImage:
-
-                            "person.crop.circle.badge.checkmark"
-
-                    )
-
-                }
-
-                Button {
-
-                    applyPreset(.employee)
-
-                } label: {
-
-                    Label(
-
-                        "Employee",
-
-                        systemImage: "person"
-
-                    )
-
-                }
-
-            } label: {
-
-                Label(
-
-                    "Apply preset",
-
-                    systemImage:
-
-                        "slider.horizontal.3"
-
-                )
-
-            }
 
             if !otherLocations.isEmpty {
 
@@ -1246,6 +1193,8 @@ private struct LocationPermissionView: View {
 
         }
 
+        .tint(.secondary)
+
     }
 
     private var featureList: some View {
@@ -1300,28 +1249,6 @@ private struct LocationPermissionView: View {
 
     }
 
-    private func applyPreset(
-
-        _ preset: PermissionPreset
-
-    ) {
-
-        withAnimation(
-
-            .easeInOut(duration: 0.18)
-
-        ) {
-
-            location.applyPreset(
-
-                preset
-
-            )
-
-        }
-
-    }
-
     private func setAll(
 
         _ level: AccessLevel
@@ -1334,20 +1261,17 @@ private struct LocationPermissionView: View {
 
         ) {
 
-            for index in
+            for index in location.permissions.indices {
+                location.permissions[index].access = level
 
-                location.permissions.indices
-
-            {
-
-                location
-
-                    .permissions[index]
-
-                    .access =
-
-                    level
-
+                if let appPermission = AppPermission(
+                    rawValue: location.permissions[index].feature.rawValue
+                ) {
+                    permissionStore.setAccess(
+                        AppAccessLevel(rawValue: level.rawValue) ?? .full,
+                        for: appPermission
+                    )
+                }
             }
 
         }
@@ -1570,39 +1494,39 @@ private struct LocationAccessPill: View {
 
     var body: some View {
 
-        Text(summary.title)
+        HStack(spacing: 6) {
 
-            .font(
+            Image(systemName: summary.systemImage)
 
-                .subheadline
+                .font(.caption.weight(.semibold))
 
-                    .weight(.semibold)
+            Text(summary.title)
 
-            )
+                .lineLimit(1)
 
-            .foregroundStyle(
+            Image(systemName: "chevron.up.chevron.down")
 
-                summary.color
+                .font(.caption2.weight(.bold))
 
-            )
+        }
 
-            .padding(
+        .font(.subheadline.weight(.semibold))
 
-                .horizontal,
+        .foregroundStyle(summary.color)
 
-                12
+        .padding(.horizontal, 12)
 
-            )
+        .frame(height: 36)
 
-            .frame(height: 36)
+        .background(
 
-            .background(
+            summary.color.opacity(0.12),
 
-                summary.color.opacity(0.12),
+            in: Capsule()
 
-                in: Capsule()
+        )
 
-            )
+        .accessibilityLabel("\(summary.title), select access")
 
     }
 
@@ -1744,7 +1668,7 @@ struct TeamMemberRow: View {
 
         HStack(spacing: 14) {
 
-            Text(member.username.prefix(1).uppercased())
+            Text(member.email.prefix(1).uppercased())
 
                 .font(
 
@@ -1782,7 +1706,13 @@ struct TeamMemberRow: View {
 
             ) {
 
-                Text(member.username)
+                Text(member.email)
+
+                    .font(.subheadline)
+
+                    .lineLimit(1)
+
+                    .truncationMode(.tail)
 
                     .foregroundStyle(
 
@@ -1890,9 +1820,7 @@ struct TeamMemberView: View {
 
                 TeamMemberDetailsSection(
 
-                    email: $member.email,
-
-                    username: $member.username
+                    email: $member.email
 
                 )
 
@@ -1938,7 +1866,7 @@ struct TeamMemberView: View {
 
         .navigationTitle(
 
-            member.username
+            member.email
 
         )
 
@@ -1994,11 +1922,9 @@ private struct TeamMemberDetailsSection: View {
 
     @Binding var email: String
 
-    @Binding var username: String
-
     var body: some View {
 
-        VStack(spacing: 18) {
+        VStack(alignment: .leading, spacing: 8) {
 
             InviteTextField(
 
@@ -2014,20 +1940,9 @@ private struct TeamMemberDetailsSection: View {
 
             )
 
-            InviteTextField(
-
-                title: "Username",
-
-                placeholder: "username",
-
-                text: $username,
-
-                keyboardType: .default,
-
-                textContentType: .username
-
-            )
-
+            Text("They’ll receive an email to set their password and use this email to sign in.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
 
     }
@@ -2337,7 +2252,7 @@ private struct PermissionCopyUserDrawer: View {
 
         return PermissionCopySource.examples.filter {
 
-            $0.username.localizedCaseInsensitiveContains(searchText)
+            $0.email.localizedCaseInsensitiveContains(searchText)
 
         }
 
@@ -2359,7 +2274,7 @@ private struct PermissionCopyUserDrawer: View {
 
                     HStack(spacing: 12) {
 
-                        Text(user.username.prefix(1).uppercased())
+                        Text(user.email.prefix(1).uppercased())
 
                             .font(.subheadline.weight(.bold))
 
@@ -2371,7 +2286,7 @@ private struct PermissionCopyUserDrawer: View {
 
                         VStack(alignment: .leading, spacing: 3) {
 
-                            Text(user.username)
+                            Text(user.email)
 
                                 .foregroundStyle(.primary)
 
@@ -2425,8 +2340,6 @@ struct TeamMember: Identifiable {
 
     let id: UUID
 
-    var username: String
-
     var email: String
 
     var locationCount: Int
@@ -2436,8 +2349,6 @@ struct TeamMember: Identifiable {
     init(
 
         id: UUID = UUID(),
-
-        username: String,
 
         email: String,
 
@@ -2449,8 +2360,6 @@ struct TeamMember: Identifiable {
 
         self.id = id
 
-        self.username = username
-
         self.email = email
 
         self.locationCount = locationCount
@@ -2460,8 +2369,6 @@ struct TeamMember: Identifiable {
     }
 
     static let unavailable = TeamMember(
-
-        username: "Unavailable",
 
         email: "",
 
@@ -2591,7 +2498,7 @@ private struct PermissionCopySource: Identifiable {
 
     let id = UUID()
 
-    let username: String
+    let email: String
 
     let organizations: [InviteOrganization]
 
@@ -2599,7 +2506,7 @@ private struct PermissionCopySource: Identifiable {
 
         organizations.reduce(0) { count, organization in
 
-            count + organization.locations.count
+            count + organization.locations.filter(\.hasGrantedAccess).count
 
         }
 
@@ -2609,7 +2516,7 @@ private struct PermissionCopySource: Identifiable {
 
         PermissionCopySource(
 
-            username: "maya.chen",
+            email: "maya.chen@northstar.com",
 
             organizations: [.northstar, .atlas]
 
@@ -2617,7 +2524,7 @@ private struct PermissionCopySource: Identifiable {
 
         PermissionCopySource(
 
-            username: "daniel.brooks",
+            email: "daniel.brooks@northstar.com",
 
             organizations: [.northstar]
 
@@ -2625,7 +2532,7 @@ private struct PermissionCopySource: Identifiable {
 
         PermissionCopySource(
 
-            username: "james.wilson",
+            email: "james.wilson@northstar.com",
 
             organizations: [.summit]
 
@@ -2665,13 +2572,15 @@ private struct InviteOrganization: Identifiable {
 
 }
 
-private struct InviteLocation: Identifiable {
+struct InviteLocation: Identifiable {
 
     let id: UUID
 
     let name: String
 
     var permissions: [FeaturePermission]
+    var selectedPreset: PermissionPreset
+    var tenantOrganizations = ["Atlas Distribution", "Fenix Freight"]
 
     init(
 
@@ -2686,6 +2595,7 @@ private struct InviteLocation: Identifiable {
         self.id = id
 
         self.name = name
+        self.selectedPreset = preset
 
         self.permissions =
 
@@ -2709,54 +2619,43 @@ private struct InviteLocation: Identifiable {
 
     }
 
+    var grantedFeatureCount: Int {
+
+        permissions.filter { $0.access != .noAccess }.count
+
+    }
+
+    var hasGrantedAccess: Bool {
+
+        grantedFeatureCount > 0
+
+    }
+
+    var grantedFeatureSummary: String {
+
+        grantedFeatureCount == 1
+
+            ? "1 feature"
+
+            : "\(grantedFeatureCount) features"
+
+    }
+
     var accessSummary: LocationAccessSummary {
-
-        let values =
-
-            permissions.map(
-
-                \.access
-
-            )
-
-        guard !values.isEmpty else {
-
-            return .noAccess
-
+        switch selectedPreset {
+        case .admin:
+            .admin
+        case .edit, .manager:
+            .edit
+        case .view:
+            .view
+        case .noAccess:
+            .noAccess
+        case .tenant:
+            .tenant
+        case .custom, .employee:
+            .custom
         }
-
-        if values.allSatisfy({
-
-            $0 == .full
-
-        }) {
-
-            return .full
-
-        }
-
-        if values.allSatisfy({
-
-            $0 == .view
-
-        }) {
-
-            return .view
-
-        }
-
-        if values.allSatisfy({
-
-            $0 == .noAccess
-
-        }) {
-
-            return .noAccess
-
-        }
-
-        return .custom
-
     }
 
     mutating func applyPreset(
@@ -2764,6 +2663,12 @@ private struct InviteLocation: Identifiable {
         _ preset: PermissionPreset
 
     ) {
+
+        selectedPreset = preset
+
+        guard preset != .custom else {
+            return
+        }
 
         for index in
 
@@ -2793,7 +2698,7 @@ private struct InviteLocation: Identifiable {
 
 }
 
-private struct FeaturePermission: Identifiable {
+struct FeaturePermission: Identifiable {
 
     let id: PermissionFeature
 
@@ -2823,7 +2728,7 @@ private struct FeaturePermission: Identifiable {
 
 // MARK: - Access level
 
-private enum AccessLevel:
+enum AccessLevel:
 
     String,
 
@@ -2905,13 +2810,19 @@ private enum AccessLevel:
 
 }
 
-private enum LocationAccessSummary {
+enum LocationAccessSummary {
 
     case noAccess
 
     case view
 
     case full
+
+    case admin
+
+    case edit
+
+    case tenant
 
     case custom
 
@@ -2931,9 +2842,57 @@ private enum LocationAccessSummary {
 
             "Full access"
 
+        case .admin:
+
+            "Admin access"
+
+        case .edit:
+
+            "Edit access"
+
+        case .tenant:
+
+            "Tenant access"
+
         case .custom:
 
             "Custom access"
+
+        }
+
+    }
+
+    var systemImage: String {
+
+        switch self {
+
+        case .noAccess:
+
+            "nosign"
+
+        case .view:
+
+            "eye"
+
+        case .full:
+
+            "checkmark.circle.fill"
+
+        case .admin:
+
+            "person.badge.key"
+
+        case .edit:
+
+            "pencil"
+
+        case .tenant:
+
+            "building.2"
+
+        case .custom:
+
+            "slider.horizontal.3"
 
         }
 
@@ -2955,6 +2914,18 @@ private enum LocationAccessSummary {
 
             .blue
 
+        case .admin:
+
+            .blue
+
+        case .edit:
+
+            .blue
+
+        case .tenant:
+
+            .indigo
+
         case .custom:
 
             .brown
@@ -2969,7 +2940,7 @@ private enum LocationAccessSummary {
 
 // MARK: - Features
 
-private enum PermissionFeature:
+enum PermissionFeature:
 
     String,
 
@@ -3079,13 +3050,20 @@ private enum PermissionFeature:
 
 // MARK: - Presets
 
-private enum PermissionPreset {
+enum PermissionPreset: CaseIterable, Identifiable {
 
     case admin
 
     case manager
 
     case employee
+    case edit
+    case view
+    case noAccess
+    case tenant
+    case custom
+
+    var id: Self { self }
 
     func access(
 
@@ -3094,6 +3072,25 @@ private enum PermissionPreset {
     ) -> AccessLevel {
 
         switch self {
+
+        case .noAccess, .custom:
+            return .noAccess
+
+        case .view:
+            return .view
+
+        case .edit:
+            return feature == .usersAndPermissions ? .noAccess : .full
+
+        case .tenant:
+            switch feature {
+            case .authorizedPeople, .authorizedOrganizations, .authorizedEquipment, .appointments:
+                return .view
+            case .accessPointRecords, .accessPointRecordsMedia:
+                return .view
+            default:
+                return .noAccess
+            }
 
         case .admin:
 
@@ -3201,7 +3198,7 @@ private extension InviteOrganization {
 
                     preset:
 
-                        .employee
+                        .noAccess
 
                 )
 

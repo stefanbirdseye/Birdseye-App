@@ -11,6 +11,11 @@
 		603183A33077962300D145A0 /* OnboardingTipViewStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 603183A23077962300D145A0 /* OnboardingTipViewStyle.swift */; };
 		603183A53077E38B00D145A0 /* TutorialPlaceholder.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 603183A43077E38B00D145A0 /* TutorialPlaceholder.mp4 */; };
 		603183A73078E03E00D145A0 /* PermissionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 603183A63078E03E00D145A0 /* PermissionStore.swift */; };
+		603183A930790BEF00D145A0 /* PersonAuthorizationTutorialFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 603183A830790BEF00D145A0 /* PersonAuthorizationTutorialFlow.swift */; };
+		603183AB30791F5600D145A0 /* AuthorizeDriverTutorialSlide1.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 603183AA30791F5600D145A0 /* AuthorizeDriverTutorialSlide1.mp4 */; };
+		603183AD30791F5600D145A0 /* AuthorizeDriverTutorialSlide3.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 603183AC30791F5600D145A0 /* AuthorizeDriverTutorialSlide3.mp4 */; };
+		603183AF30791F5700D145A0 /* AuthorizeDriverTutorialSlide2.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 603183AE30791F5700D145A0 /* AuthorizeDriverTutorialSlide2.mp4 */; };
+		603C8F103081238B007AC512 /* LocationPermissionEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 603C8F0F3081238B007AC512 /* LocationPermissionEditor.swift */; };
 		606405E030650853006DA08B /* RequestsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 606405DF30650853006DA08B /* RequestsView.swift */; };
 		6098844F303C6952003F5D4D /* AccessActivityViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6098842E303C6952003F5D4D /* AccessActivityViews.swift */; };
 		60988450303C6952003F5D4D /* AccessPointsOperationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6098842F303C6952003F5D4D /* AccessPointsOperationsView.swift */; };
@@ -55,6 +60,11 @@
 		603183A23077962300D145A0 /* OnboardingTipViewStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTipViewStyle.swift; sourceTree = "<group>"; };
 		603183A43077E38B00D145A0 /* TutorialPlaceholder.mp4 */ = {isa = PBXFileReference; lastKnownFileType = text; path = TutorialPlaceholder.mp4; sourceTree = "<group>"; };
 		603183A63078E03E00D145A0 /* PermissionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionStore.swift; sourceTree = "<group>"; };
+		603183A830790BEF00D145A0 /* PersonAuthorizationTutorialFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonAuthorizationTutorialFlow.swift; sourceTree = "<group>"; };
+		603183AA30791F5600D145A0 /* AuthorizeDriverTutorialSlide1.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = AuthorizeDriverTutorialSlide1.mp4; sourceTree = "<group>"; };
+		603183AC30791F5600D145A0 /* AuthorizeDriverTutorialSlide3.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = AuthorizeDriverTutorialSlide3.mp4; sourceTree = "<group>"; };
+		603183AE30791F5700D145A0 /* AuthorizeDriverTutorialSlide2.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = AuthorizeDriverTutorialSlide2.mp4; sourceTree = "<group>"; };
+		603C8F0F3081238B007AC512 /* LocationPermissionEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPermissionEditor.swift; sourceTree = "<group>"; };
 		606405DF30650853006DA08B /* RequestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestsView.swift; sourceTree = "<group>"; };
 		6098842E303C6952003F5D4D /* AccessActivityViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessActivityViews.swift; sourceTree = "<group>"; };
 		6098842F303C6952003F5D4D /* AccessPointsOperationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessPointsOperationsView.swift; sourceTree = "<group>"; };
@@ -206,6 +216,7 @@
 			isa = PBXGroup;
 			children = (
 				6098844D303C6952003F5D4D /* TeamView.swift */,
+				603C8F0F3081238B007AC512 /* LocationPermissionEditor.swift */,
 			);
 			path = Team;
 			sourceTree = "<group>";
@@ -246,6 +257,7 @@
 			children = (
 				60988439303C6952003F5D4D /* AuthorizedPeopleOperationsView.swift */,
 				6098848A303DC7F4003F5D4D /* AuthorizationModels.swift */,
+				603183A830790BEF00D145A0 /* PersonAuthorizationTutorialFlow.swift */,
 			);
 			path = People;
 			sourceTree = "<group>";
@@ -305,6 +317,9 @@
 				60988435303C6952003F5D4D /* Assets.xcassets */,
 				60E2BBDF303AC4AE00024C44 /* LaunchScreen.storyboard */,
 				603183A43077E38B00D145A0 /* TutorialPlaceholder.mp4 */,
+				603183AA30791F5600D145A0 /* AuthorizeDriverTutorialSlide1.mp4 */,
+				603183AC30791F5600D145A0 /* AuthorizeDriverTutorialSlide3.mp4 */,
+				603183AE30791F5700D145A0 /* AuthorizeDriverTutorialSlide2.mp4 */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -374,8 +389,11 @@
 			isa = PBXResourcesBuildPhase;
 			files = (
 				60AEC1FE303B377600370260 /* NativeAppleAppEngineering.md in Resources */,
+				603183AD30791F5600D145A0 /* AuthorizeDriverTutorialSlide3.mp4 in Resources */,
+				603183AF30791F5700D145A0 /* AuthorizeDriverTutorialSlide2.mp4 in Resources */,
 				603183A53077E38B00D145A0 /* TutorialPlaceholder.mp4 in Resources */,
 				6098846F303C6952003F5D4D /* Assets.xcassets in Resources */,
+				603183AB30791F5600D145A0 /* AuthorizeDriverTutorialSlide1.mp4 in Resources */,
 				60E2BBE0303AC4DC00024C44 /* LaunchScreen.storyboard in Resources */,
 			);
 		};
@@ -395,6 +413,7 @@
 				60988458303C6952003F5D4D /* AuthorizedOrganizationsOperationsView.swift in Sources */,
 				60988459303C6952003F5D4D /* AuthorizedPeopleOperationsView.swift in Sources */,
 				6098848B303DC7F4003F5D4D /* AuthorizationModels.swift in Sources */,
+				603183A930790BEF00D145A0 /* PersonAuthorizationTutorialFlow.swift in Sources */,
 				6098845A303C6952003F5D4D /* BirdseyeApp.swift in Sources */,
 				6098845B303C6952003F5D4D /* BirdseyeColors.swift in Sources */,
 				60988471303C8EDD003F5D4D /* PageContextStore.swift in Sources */,
@@ -418,6 +437,7 @@
 				60988475303DB110003F5D4D /* BirdseyeRefresh.swift in Sources */,
 				6098846B303C6952003F5D4D /* SettingsView.swift in Sources */,
 				6098846C303C6952003F5D4D /* SplashView.swift in Sources */,
+				603C8F103081238B007AC512 /* LocationPermissionEditor.swift in Sources */,
 				6098846D303C6952003F5D4D /* TeamView.swift in Sources */,
 				6098846E303C6952003F5D4D /* WorkspaceAIComposer.swift in Sources */,
 				60988473303D7FF9003F5D4D /* HapticFeedback.swift in Sources */,

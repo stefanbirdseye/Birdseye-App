@@ -40,6 +40,25 @@ private struct AccessPolicyTutorialTip: Tip {
   }
 }
 
+private struct TutorialPulseOutline: View {
+  @State private var isPulsing = false
+
+  var body: some View {
+    RoundedRectangle(cornerRadius: 20, style: .continuous)
+      .stroke(.blue, lineWidth: 3)
+      .scaleEffect(isPulsing ? 1.035 : 1)
+      .opacity(isPulsing ? 0.32 : 1)
+      .animation(
+        .easeInOut(duration: 1).repeatForever(autoreverses: true),
+        value: isPulsing
+      )
+      .allowsHitTesting(false)
+      .onAppear {
+        isPulsing = true
+      }
+  }
+}
+
 struct AuthorizedPeopleOperationsView: View {
   let startsPersonTutorial: Bool
 
@@ -453,6 +472,7 @@ struct AuthorizedPeopleOperationsView: View {
           }
         )
       }
+      .permissionReadOnlyEditor(.authorizedPeople)
     }
     .sheet(item: $selectedPerson) { person in
       EditPersonAuthorizationView(
@@ -478,6 +498,7 @@ struct AuthorizedPeopleOperationsView: View {
           snackbarCenter.show("Authorization restored for \(person.fullName).")
         }
       )
+      .permissionReadOnlyEditor(.authorizedPeople)
     }
   }
 }
@@ -1991,6 +2012,12 @@ struct AddPersonAuthorizationView: View {
 
             )
 
+            .overlay {
+                if tutorialRequiredField == .fullName {
+                    TutorialPulseOutline()
+                }
+            }
+
         }
 
     }
@@ -2659,8 +2686,7 @@ struct AddPersonAuthorizationView: View {
         .buttonStyle(.plain)
         .overlay {
             if isPersonTutorialActive && tutorialRequiredField == nil {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(.blue, lineWidth: 3)
+                TutorialPulseOutline()
             }
         }
 

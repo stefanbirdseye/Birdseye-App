@@ -6,7 +6,6 @@ struct ProfileView: View {
     @Binding var showSettings: Bool
     let onRestartOnboarding: () -> Void
     @State private var currentMember = TeamMember(
-        username: "maya.chen",
         email: "maya.chen@northstar.com",
         locationCount: 12,
         status: .active

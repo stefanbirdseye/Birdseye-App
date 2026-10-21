@@ -8,7 +8,6 @@ struct HomeView: View {
 
     let onAIAction: (String) -> Void
     let onOpenSettings: () -> Void
-    let onOpenTeam: () -> Void
 
     private let locations = [
         LocationSummary(
@@ -49,16 +48,11 @@ struct HomeView: View {
     @State private var activeCreateSheet: HomeCreateSheet?
     @State private var hasLoadedDefaultLocation = false
     @State private var isLocationTipPresented = false
-    @State private var isOnboardingExpanded = true
     @State private var isPersonTutorialActive = false
-    @AppStorage("isOnboardingEnabled") private var isOnboardingEnabled = false
-    @AppStorage("hasDismissedOnboardingChecklist") private var hasDismissedOnboardingChecklist = false
-    @AppStorage("onboardingAuthorizedPersonComplete") private var isAuthorizedPersonComplete = false
-    @AppStorage("hasResetPersonTutorialCompletion") private var hasResetPersonTutorialCompletion = false
-    @AppStorage("onboardingOrganizationComplete") private var isOrganizationComplete = false
-    @AppStorage("onboardingEquipmentComplete") private var isEquipmentComplete = false
-    @AppStorage("onboardingCrewComplete") private var isCrewComplete = false
-    @AppStorage("onboardingAIComplete") private var isAIComplete = false
+    @State private var activeLearnBasicsStory: LearnBasicsStory?
+    @AppStorage("learnBasicsExploreComplete") private var isLearnBasicsExploreComplete = false
+    @AppStorage("learnBasicsTeamComplete") private var isLearnBasicsTeamComplete = false
+    @AppStorage("learnBasicsAccessComplete") private var isLearnBasicsAccessComplete = false
 
     private var selectedLocation: LocationSummary {
         locations[selectedLocationIndex]
@@ -75,31 +69,6 @@ struct HomeView: View {
                                 .font(.largeTitle.weight(.bold))
                                 .foregroundStyle(.primary)
 
-                            Spacer(minLength: 0)
-
-                            if isOnboardingEnabled,
-                               hasDismissedOnboardingChecklist || !isOnboardingExpanded {
-                                OnboardingToggleButton(
-                                    isExpanded: $isOnboardingExpanded,
-                                    onShow: {
-                                        hasDismissedOnboardingChecklist = false
-                                    }
-                                )
-                                .transition(.opacity.combined(with: .scale(scale: 0.92)))
-                            }
-                        }
-
-                        if isOnboardingEnabled,
-                           !hasDismissedOnboardingChecklist,
-                           isOnboardingExpanded {
-                            OnboardingChecklist(
-                                completedTasks: onboardingCompletionStates,
-                                isExpanded: $isOnboardingExpanded,
-                                onShowMe: showOnboardingTask,
-                                onRestart: restartOnboardingSteps,
-                                onHide: hideOnboardingSteps
-                            )
-                            .transition(.opacity.combined(with: .move(edge: .top)))
                         }
 
                         LocationSwitcher(
@@ -160,14 +129,13 @@ struct HomeView: View {
             .sheet(item: $activeCreateSheet) { sheet in
                 switch sheet {
                 case .person:
-                    AddPersonAuthorizationView(
+                    PersonAuthorizationTutorialFlow(
                         isPersonTutorialActive: isPersonTutorialActive,
                         onCancelTutorial: {
                             isPersonTutorialActive = false
                         },
                         onCompleteTutorial: {
                             isPersonTutorialActive = false
-                            isAuthorizedPersonComplete = true
                             snackbarCenter.show("Completed a tutorial: Authorized a driver.")
                         }
                     )
@@ -179,16 +147,23 @@ struct HomeView: View {
                     AppointmentEditorView()
                 }
             }
+            .fullScreenCover(item: $activeLearnBasicsStory) { story in
+                LearnBasicsStoryExperience(
+                    story: story,
+                    onDismiss: {
+                        activeLearnBasicsStory = nil
+                    },
+                    onTryItYourself: {
+                        completeLearnBasicsStory(story)
+                        activeLearnBasicsStory = nil
+                    }
+                )
+            }
             .animation(
                 .easeInOut(duration: 0.25),
                 value: selectedLocation.id
             )
             .onAppear {
-                if !hasResetPersonTutorialCompletion {
-                    isAuthorizedPersonComplete = false
-                    hasResetPersonTutorialCompletion = true
-                }
-
                 guard !hasLoadedDefaultLocation else {
                     return
                 }
@@ -234,191 +209,130 @@ struct HomeView: View {
         }
     }
 
-    private var onboardingCompletionStates: [Bool] {
+    private var learnBasicsCompletionStates: [Bool] {
         [
-            true,
-            isAuthorizedPersonComplete,
-            isCrewComplete,
-            isAIComplete
+            isLearnBasicsExploreComplete,
+            isLearnBasicsTeamComplete,
+            isLearnBasicsAccessComplete
         ]
     }
 
-    private func restartOnboardingSteps() {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
-            isAuthorizedPersonComplete = false
-            isCrewComplete = false
-            isAIComplete = false
+    private func completeLearnBasicsStory(_ story: LearnBasicsStory) {
+        switch story {
+        case .start:
+            isLearnBasicsExploreComplete = true
+        case .details:
+            isLearnBasicsTeamComplete = true
+        case .review:
+            isLearnBasicsAccessComplete = true
         }
+
+        Task {
+            await HomeAddRegularDriverTip().resetEligibility()
+        }
+        isPersonTutorialActive = true
+        activeCreateSheet = .person
     }
 
-    private func hideOnboardingSteps() {
-        withAnimation(.easeInOut(duration: 0.25)) {
-            hasDismissedOnboardingChecklist = true
-            isOnboardingExpanded = false
-        }
-    }
-
-    private func showOnboardingTask(_ task: OnboardingTask) {
-        switch task {
-        case .workspace:
-            break
-        case .authorizedPerson:
-            Task {
-                await HomeAddRegularDriverTip().resetEligibility()
-            }
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
-                isPersonTutorialActive = true
-            }
-        case .crew:
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
-                isCrewComplete = true
-            }
-            onOpenTeam()
-        case .ai:
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
-                isAIComplete = true
-            }
-            onAIAction("Help me get started with Birdseye AI.")
-        }
-    }
 }
 
-private enum OnboardingTask: CaseIterable, Identifiable, Hashable {
-    case workspace
-    case authorizedPerson
-    case crew
-    case ai
+private enum LearnBasicsStory: CaseIterable, Identifiable {
+    case start
+    case details
+    case review
 
     var id: Self { self }
 
     var title: String {
         switch self {
-        case .workspace: "Join your workspace"
-        case .authorizedPerson: "Authorize a driver"
-        case .crew: "Invite your team"
-        case .ai: "Ask AI to do anything."
+        case .start: "Start authorization"
+        case .details: "Add person details"
+        case .review: "Review access"
         }
     }
 
-    var subtitle: String {
+    var symbol: String {
         switch self {
-        case .workspace: "Workspace"
-        case .authorizedPerson: "People"
-        case .crew: "Team"
-        case .ai: "Birdseye AI"
+        case .start: "person.badge.plus"
+        case .details: "person.text.rectangle.fill"
+        case .review: "checkmark.shield.fill"
         }
     }
 
-    var description: String {
+    var slides: [LearnBasicsSlide] {
         switch self {
-        case .workspace: "Your workspace is ready."
-        case .authorizedPerson: "Add a regular driver to your list."
-        case .crew: "Bring teammates in and set their access."
-        case .ai: "Try Birdseye AI"
+        case .start:
+            [
+                LearnBasicsSlide(title: "Authorize a person", message: "Start by opening People and selecting Add person.", symbol: "person.badge.plus"),
+                LearnBasicsSlide(title: "Choose the right person", message: "Search for an existing person or create a new authorization record.", symbol: "person.crop.circle.badge.plus"),
+                LearnBasicsSlide(title: "Ready to begin", message: "Birdseye will guide you through each part of the authorization.", symbol: "hand.tap.fill")
+            ]
+        case .details:
+            [
+                LearnBasicsSlide(title: "Add their details", message: "Capture the information your team needs to identify the person.", symbol: "person.text.rectangle.fill"),
+                LearnBasicsSlide(title: "Set their permissions", message: "Choose which locations, doors, and times they can access.", symbol: "key.fill"),
+                LearnBasicsSlide(title: "Keep it current", message: "You can review or update an authorization whenever details change.", symbol: "arrow.triangle.2.circlepath" )
+            ]
+        case .review:
+            [
+                LearnBasicsSlide(title: "Review the authorization", message: "Check the person, access rules, and any required approval details.", symbol: "checklist"),
+                LearnBasicsSlide(title: "Confirm with confidence", message: "Birdseye highlights anything that still needs your attention.", symbol: "checkmark.seal.fill"),
+                LearnBasicsSlide(title: "Authorize the person", message: "Finish the guided flow to save their authorization securely.", symbol: "checkmark.shield.fill")
+            ]
         }
-    }
-
-    var thumbnailSymbol: String {
-        switch self {
-        case .workspace: "checkmark.circle.fill"
-        case .authorizedPerson: "person.badge.plus"
-        case .crew: "person.3.fill"
-        case .ai: "sparkles"
-        }
-    }
-
-    var iconColor: Color {
-        switch self {
-        case .workspace: .green
-        case .authorizedPerson: .blue
-        case .crew: .teal
-        case .ai: .pink
-        }
-    }
-
-}
-
-private struct OnboardingToggleButton: View {
-
-    @Binding var isExpanded: Bool
-    let onShow: () -> Void
-
-    var body: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.25)) {
-                onShow()
-                isExpanded = true
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Text("Learn basics")
-                    .font(.caption.weight(.semibold))
-
-                Image(systemName: "chevron.down")
-                    .font(.caption2.weight(.bold))
-                    .contentTransition(.symbolEffect(.replace))
-                    .symbolEffect(.bounce, value: isExpanded)
-            }
-            .foregroundStyle(Color(.secondaryLabel))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color(.secondarySystemBackground), in: Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Learn basics")
-        .accessibilityHint("Show onboarding steps")
     }
 }
 
-private struct OnboardingChecklist: View {
+private struct LearnBasicsSlide: Identifiable {
+    let title: String
+    let message: String
+    let symbol: String
 
-    let completedTasks: [Bool]
-    @Binding var isExpanded: Bool
-    let onShowMe: (OnboardingTask) -> Void
-    let onRestart: () -> Void
-    let onHide: () -> Void
+    var id: String { title }
+}
 
-    private var completedCount: Int {
-        completedTasks.filter { $0 }.count
-    }
+private struct LearnBasicsSection: View {
+
+    let completedStories: [Bool]
+    let onSelectStory: (LearnBasicsStory) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            OnboardingChecklistHeader(
-                completedCount: completedCount,
-                totalCount: OnboardingTask.allCases.count,
-                isExpanded: $isExpanded
-            )
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Learn basics")
+                        .font(.headline.weight(.semibold))
+                    Text("Quick stories to help you get started.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
-            ForEach(Array(OnboardingTask.allCases.enumerated()), id: \.element) { index, task in
-                OnboardingTaskRow(
-                    task: task,
-                    stepNumber: index + 1,
-                    isComplete: completedTasks[index],
-                    isCurrent: !completedTasks[index] && !completedTasks.prefix(index).contains(false),
-                    onShowMe: { onShowMe(task) }
-                )
-                .padding(.horizontal, 12)
+                Spacer(minLength: 0)
+
+                Text("\(completedStories.filter { $0 }.count)/\(LearnBasicsStory.allCases.count)")
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color(.tertiarySystemFill), in: Capsule())
             }
 
-            if completedCount == OnboardingTask.allCases.count {
-                OnboardingCompletionActions(
-                    onRestart: onRestart,
-                    onHide: onHide
-                )
-                .padding(.horizontal, 12)
-                .padding(.top, 8)
-                .padding(.bottom, 12)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 18) {
+                    ForEach(Array(LearnBasicsStory.allCases.enumerated()), id: \.element) { index, story in
+                        LearnBasicsStoryButton(
+                            story: story,
+                            isComplete: completedStories[index],
+                            action: { onSelectStory(story) }
+                        )
+                    }
+                }
+                .padding(.horizontal, 2)
+                .padding(.vertical, 5)
             }
         }
-        .padding(0)
-        .background(
-            Color(.secondarySystemGroupedBackground),
-            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(Color(.separator).opacity(0.45), lineWidth: 1)
@@ -427,177 +341,208 @@ private struct OnboardingChecklist: View {
     }
 }
 
-private struct OnboardingChecklistHeader: View {
+private struct LearnBasicsStoryButton: View {
 
-    let completedCount: Int
-    let totalCount: Int
-    @Binding var isExpanded: Bool
-
-    private var isComplete: Bool {
-        completedCount == totalCount
-    }
-
-    var body: some View {
-        HStack(spacing: 20) {
-            OnboardingProgressRing(completedCount: completedCount, totalCount: totalCount)
-
-            VStack(alignment: .leading, spacing: 1) {
-                if isComplete {
-                    Text("You're all set!")
-                        .font(.headline.weight(.semibold))
-
-                    Text("Find more tips in Help.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("Get started")
-                        .font(.headline.weight(.semibold))
-
-                    Text("Learn the basics in 2 minutes.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer(minLength: 0)
-
-            Button {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    isExpanded = false
-                }
-            } label: {
-                Image(systemName: "chevron.up")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Color(.secondaryLabel))
-                    .frame(width: 36, height: 36)
-                    .background(.thinMaterial, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Collapse onboarding")
-            .accessibilityHint("Shows the Learn basics button")
-        }
-    }
-}
-
-private struct OnboardingCompletionActions: View {
-
-    let onRestart: () -> Void
-    let onHide: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Spacer(minLength: 0)
-
-            Button("Restart", systemImage: "arrow.counterclockwise", action: onRestart)
-                .font(.subheadline.weight(.semibold))
-                .buttonStyle(.bordered)
-
-            Button(action: onHide) {
-                Label("Complete", systemImage: "checkmark")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(Color.green, in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Complete onboarding")
-            .accessibilityHint("Collapses onboarding to the Learn basics button")
-        }
-    }
-}
-
-private struct OnboardingProgressRing: View {
-
-    let completedCount: Int
-    let totalCount: Int
-
-    private var isComplete: Bool {
-        completedCount == totalCount
-    }
-
-    var body: some View {
-        Gauge(value: Double(completedCount), in: 0...Double(totalCount)) {
-            Text("Onboarding progress")
-        } currentValueLabel: {
-            Text("\(completedCount)/\(totalCount)")
-                .font(.subheadline.weight(.semibold).monospacedDigit())
-                .contentTransition(.numericText(value: Double(completedCount)))
-        }
-        .gaugeStyle(.accessoryCircularCapacity)
-        .tint(isComplete ? .green : .accentColor)
-        .frame(width: 48, height: 48)
-        .animation(.spring(response: 0.35, dampingFraction: 0.78), value: completedCount)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(completedCount) of \(totalCount) steps complete")
-    }
-}
-
-private struct OnboardingTaskRow: View {
-
-    let task: OnboardingTask
-    let stepNumber: Int
+    let story: LearnBasicsStory
     let isComplete: Bool
-    let isCurrent: Bool
-    let onShowMe: () -> Void
+    let action: () -> Void
 
     var body: some View {
-        Button(action: onShowMe) {
-            HStack(spacing: 10) {
-                Image(systemName: isComplete ? "checkmark.circle.fill" : (isCurrent ? "circle.inset.filled" : "circle"))
-                    .font(.title3)
-                    .foregroundStyle(isComplete ? Color.green : (isCurrent ? Color.accentColor : Color.secondary))
-                    .frame(width: 28, height: 28)
-                    .contentTransition(.symbolEffect(.replace))
-                    .symbolEffect(.bounce, value: isComplete)
-                    .accessibilityHidden(true)
+        Button(action: action) {
+            VStack(spacing: 8) {
+                ZStack(alignment: .bottomTrailing) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.accentColor.opacity(0.12))
+                            .frame(width: 72, height: 72)
+                            .overlay {
+                                Circle()
+                                    .stroke(Color.accentColor, lineWidth: 3)
+                            }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(task.title)
-                        .font(.subheadline.weight(.medium))
-                        .strikethrough(isComplete, color: .secondary)
-                        .foregroundStyle(isComplete ? .secondary : .primary)
+                        Image(systemName: story.symbol)
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
 
-                    if isCurrent {
-                        Text(task.description)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    if isComplete {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.white, .green)
+                            .background(Color.white, in: Circle())
+                            .offset(x: 3, y: 3)
+                            .accessibilityHidden(true)
                     }
                 }
 
-                Spacer(minLength: 0)
-
-                if isCurrent {
-                    HStack(spacing: 6) {
-                        Text("Start")
-                        Image(systemName: "chevron.right")
-                    }
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(Color.accentColor, in: Capsule())
-                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                } else if !isComplete {
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color(.tertiaryLabel))
-                        .accessibilityHidden(true)
-                }
+                Text(story.title)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(width: 88)
             }
-            .padding(.vertical, 8)
-
         }
         .buttonStyle(.plain)
-        .contentShape(Rectangle())
-        .hoverEffect(.highlight)
-        .sensoryFeedback(.success, trigger: isComplete)
-        .animation(.spring(response: 0.35, dampingFraction: 0.78), value: isComplete)
-        .animation(.spring(response: 0.35, dampingFraction: 0.78), value: isCurrent)
-        .accessibilityLabel(isComplete ? "\(task.title), completed" : task.title)
-        .accessibilityHint(isComplete ? "" : "Opens this getting started action")
+        .accessibilityLabel(isComplete ? "\(story.title), completed" : story.title)
+        .accessibilityHint("Opens a three-slide tutorial")
+    }
+}
+
+private struct LearnBasicsStoryExperience: View {
+
+    let story: LearnBasicsStory
+    let onDismiss: () -> Void
+    let onTryItYourself: () -> Void
+
+    @State private var slideIndex = 0
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(red: 0.03, green: 0.16, blue: 0.34), Color(red: 0.06, green: 0.43, blue: 0.78)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                HStack(spacing: 5) {
+                    ForEach(story.slides.indices, id: \.self) { index in
+                        Capsule()
+                            .fill(index <= slideIndex ? Color.white : Color.white.opacity(0.3))
+                            .frame(height: 4)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+
+                HStack {
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark")
+                            .font(.body.weight(.bold))
+                            .frame(width: 42, height: 42)
+                            .background(.white.opacity(0.16), in: Circle())
+                    }
+                    .accessibilityLabel("Close tutorial")
+
+                    Spacer()
+
+                    Text("\(slideIndex + 1) of \(story.slides.count)")
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+
+                TabView(selection: $slideIndex) {
+                    ForEach(Array(story.slides.enumerated()), id: \.element.id) { index, slide in
+                        LearnBasicsStorySlide(
+                            slide: slide,
+                            isActive: slideIndex == index
+                        )
+                        .tag(index)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .overlay {
+                    GeometryReader { proxy in
+                        HStack(spacing: 0) {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    moveToPreviousSlide()
+                                }
+                                .frame(width: proxy.size.width / 2)
+
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    moveToNextSlide()
+                                }
+                                .frame(width: proxy.size.width / 2)
+                        }
+                    }
+                }
+
+                HStack(spacing: 12) {
+                    Button("Previous", action: moveToPreviousSlide)
+                    .buttonStyle(.bordered)
+                    .tint(.white)
+                    .disabled(slideIndex == 0)
+                    .opacity(slideIndex == 0 ? 0.4 : 1)
+
+                    Spacer()
+
+                    if slideIndex == story.slides.count - 1 {
+                        Button("Try it yourself", action: onTryItYourself)
+                            .buttonStyle(.borderedProminent)
+                            .tint(.white)
+                            .foregroundStyle(Color.accentColor)
+                    } else {
+                        Button("Next", action: moveToNextSlide)
+                        .buttonStyle(.borderedProminent)
+                        .tint(.white)
+                        .foregroundStyle(Color.accentColor)
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 28)
+            }
+        }
+        .interactiveDismissDisabled()
+    }
+
+    private func moveToPreviousSlide() {
+        guard slideIndex > 0 else {
+            return
+        }
+
+        withAnimation(.easeInOut) {
+            slideIndex -= 1
+        }
+    }
+
+    private func moveToNextSlide() {
+        guard slideIndex < story.slides.count - 1 else {
+            return
+        }
+
+        withAnimation(.easeInOut) {
+            slideIndex += 1
+        }
+    }
+}
+
+private struct LearnBasicsStorySlide: View {
+
+    let slide: LearnBasicsSlide
+    let isActive: Bool
+
+    var body: some View {
+        VStack(spacing: 28) {
+            Image(systemName: slide.symbol)
+                .font(.system(size: 74, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 156, height: 156)
+                .background(.white.opacity(0.16), in: Circle())
+
+            VStack(spacing: 12) {
+                Text(slide.title)
+                    .font(.largeTitle.weight(.bold))
+                    .multilineTextAlignment(.center)
+
+                Text(slide.message)
+                    .font(.title3)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.white.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .opacity(isActive ? 1 : 0)
+            .animation(.easeIn(duration: 0.3), value: isActive)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 32)
     }
 }
 
@@ -965,6 +910,8 @@ private struct MetricCard<Destination: View>: View {
     let isHighlighted: Bool
     let onAdd: () -> Void
 
+    @State private var isHighlightPulseActive = false
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
 
@@ -1058,6 +1005,13 @@ private struct MetricCard<Destination: View>: View {
                             Circle()
                                 .stroke(.blue, lineWidth: 3)
                                 .padding(-6)
+                                .scaleEffect(isHighlightPulseActive ? 1.24 : 1)
+                                .opacity(isHighlightPulseActive ? 0.28 : 1)
+                                .animation(
+                                    .easeInOut(duration: 1)
+                                        .repeatForever(autoreverses: true),
+                                    value: isHighlightPulseActive
+                                )
                         }
                     }
                     .symbolEffect(.pulse, isActive: isHighlighted)
@@ -1066,6 +1020,12 @@ private struct MetricCard<Destination: View>: View {
             .padding(12)
             .contentShape(Circle())
             .accessibilityLabel("Add \(title)")
+        }
+        .onAppear {
+            isHighlightPulseActive = isHighlighted
+        }
+        .onChange(of: isHighlighted) { _, isHighlighted in
+            isHighlightPulseActive = isHighlighted
         }
     }
 }
@@ -1345,7 +1305,6 @@ private struct AIActionButton: View {
 #Preview {
     HomeView(
         onAIAction: { _ in },
-        onOpenSettings: {},
-        onOpenTeam: {}
+        onOpenSettings: {}
     )
 }

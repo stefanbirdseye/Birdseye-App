@@ -6,19 +6,19 @@ struct LoginView: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    @State private var username = "maya@northstar.com"
+    @State private var email = "maya@northstar.com"
     @State private var password = "birdseye-demo"
     @State private var showPassword = false
 
     @FocusState private var focusedField: Field?
 
     private enum Field {
-        case username
+        case email
         case password
     }
 
     private var canSubmit: Bool {
-        !username
+        !email
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .isEmpty && !password.isEmpty
     }
@@ -49,14 +49,14 @@ struct LoginView: View {
                                         .frame(width: 20)
 
                                     TextField(
-                                        "Username or email",
-                                        text: $username
+                                        "Email",
+                                        text: $email
                                     )
                                     .keyboardType(.emailAddress)
-                                    .textContentType(.username)
+                                    .textContentType(.emailAddress)
                                     .textInputAutocapitalization(.never)
                                     .autocorrectionDisabled()
-                                    .focused($focusedField, equals: .username)
+                                    .focused($focusedField, equals: .email)
                                     .submitLabel(.next)
                                     .onSubmit {
                                         focusedField = .password

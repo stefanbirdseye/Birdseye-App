@@ -24,6 +24,11 @@ struct AIView: View {
     @State private var tutorialDestination: AITutorial?
     @State private var isStartHereExpanded = true
     @State private var isCloseOnboardingConfirmationPresented = false
+    @State private var teamInvitationEmail = ""
+    @State private var isTeamInvitePresented = false
+    @State private var onboardingCardScrollID: String? = "learnBasics"
+
+    @Environment(\.colorScheme) private var colorScheme
 
     @AppStorage("onboardingStartHereDismissed") private var isStartHereDismissed = false
     @AppStorage("onboardingAuthorizedPersonComplete") private var isAuthorizedPersonComplete = false
@@ -180,16 +185,29 @@ struct AIView: View {
         )
         .birdseyeMainTabPage()
         .toolbarBackground(.visible, for: .navigationBar)
-        .sheet(item: $selectedTutorial) { tutorial in
-            AITutorialDrawer(
+        .fullScreenCover(item: $selectedTutorial) { tutorial in
+            AITutorialStoryExperience(
                 tutorial: tutorial,
-                isAuthorizedPersonComplete: $isAuthorizedPersonComplete,
-                isCrewComplete: $isCrewComplete,
-                isAIComplete: $isAIComplete,
-                onOpenDestination: openTutorialDestination
+                isComplete: completionBinding(for: tutorial),
+                onDismiss: {
+                    selectedTutorial = nil
+                },
+                onTryItYourself: {
+                    openTutorialDestination(tutorial)
+                },
+                onNextTutorial: {
+                    guard let index = AITutorial.allCases.firstIndex(of: tutorial) else {
+                        selectedTutorial = nil
+                        return
+                    }
+
+                    let nextIndex = AITutorial.allCases.index(after: index)
+                    selectedTutorial = AITutorial.allCases.indices.contains(nextIndex)
+                        ? AITutorial.allCases[nextIndex]
+                        : nil
+                }
             )
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
+            .id(tutorial.id)
         }
         .confirmationDialog(
             "Close onboarding?",
@@ -199,10 +217,17 @@ struct AIView: View {
             Button("Close onboarding", role: .destructive) {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     isStartHereDismissed = true
+                    onboardingCardScrollID = "inviteTeam"
                 }
             }
         } message: {
-            Text("You can restore onboarding at any time in Settings.")
+            Text("All Start here steps will remain available in Help Center whenever you need them.")
+        }
+        .sheet(isPresented: $isTeamInvitePresented) {
+            InviteTeamMemberView(email: $teamInvitationEmail) { _, _ in
+                isCrewComplete = true
+                teamInvitationEmail = ""
+            }
         }
     }
 
@@ -237,7 +262,10 @@ struct AIView: View {
 
     private var exampleSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if !isStartHereDismissed {
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 16) {
+                    if !isStartHereDismissed {
+                VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 10) {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
@@ -264,8 +292,6 @@ struct AIView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Start here, \(completedTutorialCount) of \(AITutorial.allCases.count) complete")
-                    .accessibilityHint(isStartHereExpanded ? "Collapses tutorials" : "Expands tutorials")
 
                     Spacer()
 
@@ -281,51 +307,70 @@ struct AIView: View {
                                 .background(Color.green, in: Capsule())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Complete onboarding")
                     } else {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                isStartHereExpanded.toggle()
-                            }
+                        NavigationLink {
+                            HelpView()
                         } label: {
-                            Image(systemName: "chevron.down")
+                            Label("See all", systemImage: "arrow.right")
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .rotationEffect(.degrees(isStartHereExpanded ? 180 : 0))
+                                .foregroundStyle(Color.accentColor)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(isStartHereExpanded ? "Collapse tutorials" : "Expand tutorials")
                     }
                 }
 
                 if isStartHereExpanded {
-                    ScrollViewReader { proxy in
-                        ScrollView(.horizontal) {
-                            LazyHStack(spacing: 14) {
-                                ForEach(AITutorial.allCases) { tutorial in
-                                    AITutorialCard(
-                                        tutorial: tutorial,
-                                        isComplete: completionBinding(for: tutorial),
-                                        onOpen: {
-                                            selectedTutorial = tutorial
-                                        }
-                                    )
-                                    .id(tutorial)
-                                }
-                            }
-                            .padding(.vertical, 2)
-                        }
-                        .scrollIndicators(.hidden)
-                        .onAppear {
-                            scrollTutorials(to: proxy)
-                        }
-                        .onChange(of: completedTutorialCount) { _, _ in
-                            scrollTutorials(to: proxy)
+                    HStack(spacing: 0) {
+                        ForEach(AITutorial.allCases) { tutorial in
+                            AITutorialStoryCircle(
+                                tutorial: tutorial,
+                                isComplete: completionBinding(for: tutorial),
+                                onOpen: { selectedTutorial = tutorial }
+                            )
+                            .frame(maxWidth: .infinity)
                         }
                     }
+                    .padding(.vertical, 2)
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
+                }
+                .padding(20)
+                .frame(height: 200, alignment: .top)
+                .background(
+                    colorScheme == .dark ? Color(.secondarySystemGroupedBackground) : .white,
+                    in: RoundedRectangle(cornerRadius: 28, style: .continuous)
+                )
+                .containerRelativeFrame(.horizontal, count: 1, spacing: 16)
+                .id("learnBasics")
+                    }
+
+                InviteTeamActionCard(
+                    invitationEmail: $teamInvitationEmail,
+                    isInvitePresented: $isTeamInvitePresented
+                )
+                .containerRelativeFrame(.horizontal, count: 1, spacing: 16)
+                .id("inviteTeam")
+
+                sendRequestCard
+                    .containerRelativeFrame(.horizontal, count: 1, spacing: 16)
+                    .id("sendRequest")
+                }
+                .scrollTargetLayout()
             }
+            .scrollIndicators(.hidden)
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $onboardingCardScrollID)
+
+            HStack(spacing: 8) {
+                ForEach(onboardingCardIDs, id: \.self) { cardID in
+                    Capsule()
+                        .fill(cardID == onboardingCardScrollID ? Color.accentColor : Color.secondary.opacity(0.28))
+                        .frame(width: cardID == onboardingCardScrollID ? 18 : 6, height: 6)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(onboardingCardAccessibilityLabel)
 
             VStack(alignment: .leading, spacing: 10) {
                 Text("Try these examples")
@@ -346,6 +391,145 @@ struct AIView: View {
             }
             .padding(.top, 10)
         }
+    }
+
+    private var teamInvitationCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Invite your team")
+                        .font(.title3.weight(.bold))
+
+                    Text("Manage access, view activity, and submit requests together in Birdseye.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "person.2.badge.plus")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 58, height: 58)
+                    .background(Color.accentColor.opacity(0.16), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .accessibilityHidden(true)
+            }
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 10) {
+                Image(systemName: "envelope")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+
+                TextField("Email address", text: $teamInvitationEmail)
+                    .textContentType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.emailAddress)
+                    .submitLabel(.go)
+                    .onSubmit {
+                        isTeamInvitePresented = true
+                    }
+
+                Button {
+                    isTeamInvitePresented = true
+                } label: {
+                    Image(systemName: "arrow.right")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 40, height: 40)
+                        .background(Color.accentColor, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Invite team member")
+            }
+            .padding(.leading, 16)
+            .padding(.trailing, 8)
+            .frame(minHeight: 54)
+            .background(
+                colorScheme == .dark ? Color(.secondarySystemGroupedBackground) : .white,
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            )
+        }
+        .padding(20)
+        .frame(height: 200, alignment: .top)
+        .background(
+            Color.accentColor.opacity(colorScheme == .dark ? 0.26 : 0.12),
+            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
+        )
+    }
+
+    private var sendRequestCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Send us a request")
+                        .font(.title3.weight(.bold))
+
+                    Text("Request footage, a protocol change, or an update to service hours.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "envelope")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 58, height: 58)
+                    .background(Color.accentColor.opacity(0.16), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .accessibilityHidden(true)
+            }
+
+            Spacer(minLength: 0)
+
+            NavigationLink {
+                RequestsView()
+            } label: {
+                Label("Open requests", systemImage: "arrow.right")
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 54)
+                    .background(
+                        Color.accentColor,
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(20)
+        .frame(height: 200, alignment: .top)
+        .background(
+            colorScheme == .dark ? Color(.secondarySystemGroupedBackground) : .white,
+            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
+        )
+    }
+
+    private var onboardingCardIDs: [String] {
+        isStartHereDismissed
+            ? ["inviteTeam", "sendRequest"]
+            : ["learnBasics", "inviteTeam", "sendRequest"]
+    }
+
+    private var onboardingCardAccessibilityLabel: String {
+        let cardID = onboardingCardScrollID ?? onboardingCardIDs[0]
+        let position = (onboardingCardIDs.firstIndex(of: cardID) ?? 0) + 1
+        let title: String
+
+        switch cardID {
+        case "inviteTeam":
+            title = "Invite your team"
+        case "sendRequest":
+            title = "Send us a request"
+        default:
+            title = "Learn basics"
+        }
+
+        return "\(title) card, \(position) of \(onboardingCardIDs.count)"
     }
 
     private var completedTutorialCount: Int {
@@ -663,6 +847,83 @@ struct AIView: View {
 }
 
 
+struct InviteTeamActionCard: View {
+    @Binding var invitationEmail: String
+    @Binding var isInvitePresented: Bool
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Invite your team")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.primary)
+
+                    Text("Manage access, view activity, and submit requests together in Birdseye.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "person.2.badge.plus")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 58, height: 58)
+                    .background(Color.accentColor.opacity(0.16), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .accessibilityHidden(true)
+            }
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 10) {
+                Image(systemName: "envelope")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+
+                TextField("Email address", text: $invitationEmail)
+                    .textContentType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.emailAddress)
+                    .submitLabel(.go)
+                    .onSubmit {
+                        isInvitePresented = true
+                    }
+
+                Button {
+                    isInvitePresented = true
+                } label: {
+                        Image(systemName: "arrow.right")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 40, height: 40)
+                            .background(Color.accentColor, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Invite team member")
+            }
+            .padding(.leading, 16)
+            .padding(.trailing, 8)
+            .frame(minHeight: 54)
+            .background(
+                colorScheme == .dark ? Color(.secondarySystemGroupedBackground) : .white,
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            )
+        }
+        .padding(20)
+        .frame(height: 200, alignment: .top)
+        .background(
+            Color.accentColor.opacity(colorScheme == .dark ? 0.26 : 0.12),
+            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
+        )
+    }
+}
+
 // MARK: - AI Tutorials
 
 struct AITutorialStep {
@@ -679,8 +940,8 @@ enum AITutorial: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .authorizeDriver: "Authorize a driver"
-        case .inviteTeam: "Invite your team"
+        case .authorizeDriver: "Authorize a regular driver"
+        case .inviteTeam: "Invite your team members"
         case .askAI: "Ask AI to do anything"
         }
     }
@@ -727,6 +988,34 @@ enum AITutorial: String, CaseIterable, Identifiable {
         }
     }
 
+    func stepImageAssetName(at index: Int) -> String? {
+        let assetNames = [
+            "AuthorizePersonTutorialSlide1",
+            "AuthorizePersonTutorialSlide2",
+            "AuthorizePersonTutorialSlide3"
+        ]
+
+        guard self == .authorizeDriver, assetNames.indices.contains(index) else {
+            return nil
+        }
+
+        return assetNames[index]
+    }
+
+    func stepVideoResourceName(at index: Int) -> String? {
+        let resourceNames = [
+            "AuthorizeDriverTutorialSlide1",
+            "AuthorizeDriverTutorialSlide2",
+            "AuthorizeDriverTutorialSlide3"
+        ]
+
+        guard self == .authorizeDriver, resourceNames.indices.contains(index) else {
+            return nil
+        }
+
+        return resourceNames[index]
+    }
+
     var article: String {
         switch self {
         case .authorizeDriver:
@@ -737,78 +1026,504 @@ enum AITutorial: String, CaseIterable, Identifiable {
             "Tell Birdseye AI what you need in plain language. It can help you find records, review activity, and start common tasks without digging through screens."
         }
     }
+
+    var completionTitle: String {
+        switch self {
+        case .authorizeDriver: "Add a regular driver"
+        case .inviteTeam: "Invite a team member"
+        case .askAI: "Ask Birdseye AI"
+        }
+    }
+
+    var completionDetail: String {
+        switch self {
+        case .authorizeDriver:
+            "Try adding a regular driver, like John Smith, to your authorized list so they can always enter."
+        case .inviteTeam:
+            "Try inviting a teammate so you can manage access and work together in Birdseye."
+        case .askAI:
+            "Try asking Birdseye AI a question in your own words to find what you need."
+        }
+    }
+
+    var completionActionTitle: String {
+        switch self {
+        case .authorizeDriver: "Add a regular driver"
+        case .inviteTeam: "Invite a team member"
+        case .askAI: "Ask Birdseye AI"
+        }
+    }
 }
 
-private struct AITutorialCard: View {
+private struct AITutorialStoryCircle: View {
     let tutorial: AITutorial
     @Binding var isComplete: Bool
     let onOpen: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                LinearGradient(
-                    colors: [.blue.opacity(0.9), .blue.opacity(0.58)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
+        Button {
+            HapticFeedback.lightImpact()
+            onOpen()
+        } label: {
+            VStack(spacing: 8) {
+                ZStack(alignment: .bottomTrailing) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.accentColor.opacity(0.12))
+                            .frame(width: 72, height: 72)
+                            .overlay {
+                                Circle()
+                                    .stroke(
+                                        isComplete
+                                            ? Color.gray.opacity(0.55)
+                                            : Color.accentColor,
+                                        lineWidth: 3
+                                    )
+                            }
 
-                Image(systemName: tutorial.thumbnailSymbol)
-                    .font(.system(size: 36, weight: .semibold))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(8)
-            }
-            .frame(width: 92, height: 92)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        Image(
+                            systemName: tutorial == .authorizeDriver
+                                ? "person.text.rectangle"
+                                : tutorial.thumbnailSymbol
+                        )
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                    }
 
-            VStack(alignment: .leading, spacing: 7) {
-                Text(tutorial.title)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-
-                Text(tutorial.duration)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                Button {
-                    isComplete.toggle()
-                    HapticFeedback.lightImpact()
-                } label: {
-                    Label(
-                        isComplete ? "Done" : "Mark done",
-                        systemImage: isComplete ? "checkmark.circle.fill" : "circle"
-                    )
-                    .font(.caption.weight(.semibold))
+                    if isComplete {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.white, .green)
+                            .background(Color.white, in: Circle())
+                            .offset(x: 3, y: 3)
+                            .accessibilityHidden(true)
+                    }
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(isComplete ? .green : .blue)
-                .accessibilityLabel(isComplete ? "Mark \(tutorial.title) as not done" : "Mark \(tutorial.title) as done")
+
+                Text(tutorial.title)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: 104)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isComplete ? "\(tutorial.title), completed" : tutorial.title)
+        .accessibilityHint("Opens a three-slide tutorial")
+    }
+}
+
+private struct AITutorialStoryExperience: View {
+    let tutorial: AITutorial
+    @Binding var isComplete: Bool
+    let onDismiss: () -> Void
+    let onTryItYourself: () -> Void
+    let onNextTutorial: () -> Void
+
+    @State private var selectedStep = 0
+    @State private var activeVideoProgress = 0.0
+    @State private var player = AVPlayer()
+    @State private var timeObserver: Any?
+    @State private var endObserver: NSObjectProtocol?
+    @State private var tapFeedbackEdge: HorizontalEdge?
+    @State private var isMuted = false
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(red: 0.03, green: 0.16, blue: 0.34), Color(red: 0.06, green: 0.43, blue: 0.78)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                HStack(spacing: 5) {
+                    ForEach(tutorial.steps.indices, id: \.self) { index in
+                        Capsule()
+                            .fill(Color.white.opacity(0.3))
+                            .overlay(alignment: .leading) {
+                                Capsule()
+                                    .fill(Color.white)
+                                    .scaleEffect(
+                                        x: progress(for: index),
+                                        anchor: .leading
+                                    )
+                            }
+                            .frame(height: 4)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+
+                HStack(spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: tutorial.thumbnailSymbol)
+                            .font(.subheadline.weight(.semibold))
+                            .frame(width: 32, height: 32)
+                            .background(.white.opacity(0.16), in: Circle())
+                            .accessibilityHidden(true)
+
+                        Text(tutorial.title)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(tutorial.title)
+
+                    Spacer()
+
+                    Button {
+                        isMuted.toggle()
+                        player.isMuted = isMuted
+                    } label: {
+                        Image(systemName: isMuted ? "speaker.slash" : "speaker.wave.2")
+                            .font(.body.weight(.bold))
+                            .frame(width: 42, height: 42)
+                    }
+                    .accessibilityLabel(isMuted ? "Unmute tutorial" : "Mute tutorial")
+
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark")
+                            .font(.body.weight(.bold))
+                            .frame(width: 42, height: 42)
+                    }
+                    .accessibilityLabel("Close tutorial")
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+
+                TabView(selection: $selectedStep) {
+                    ForEach(Array(tutorial.steps.enumerated()), id: \.offset) { index, step in
+                        AITutorialStorySlide(
+                            tutorial: tutorial,
+                            step: step,
+                            stepIndex: index,
+                            isActive: selectedStep == index,
+                            player: player
+                        )
+                        .tag(index)
+                    }
+
+                    AITutorialStoryCompletionSlide(
+                        tutorial: tutorial,
+                        onTryItYourself: {
+                            isComplete = true
+                            onTryItYourself()
+                        },
+                        onNextTutorial: onNextTutorial,
+                        onPrevious: moveToPreviousStep
+                    )
+                    .tag(tutorial.steps.count)
+                    .onAppear {
+                        isComplete = true
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .overlay {
+                    GeometryReader { proxy in
+                        HStack(spacing: 0) {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture { moveToPreviousStep(showingFeedbackAt: .leading) }
+                                .frame(width: proxy.size.width / 2, height: proxy.size.height)
+
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture { moveToNextStep(showingFeedbackAt: .trailing) }
+                                .frame(width: proxy.size.width / 2, height: proxy.size.height)
+                        }
+                    }
+                    .allowsHitTesting(selectedStep < tutorial.steps.count)
+                }
             }
 
-            Spacer(minLength: 0)
+            LinearGradient(
+                colors: [.white.opacity(tapFeedbackEdge == .leading ? 0.32 : 0), .clear],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: 112)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+
+            LinearGradient(
+                colors: [.clear, .white.opacity(tapFeedbackEdge == .trailing ? 0.32 : 0)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: 112)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
         }
-        .padding(12)
-        .frame(width: 274, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .onTapGesture(perform: onOpen)
-        .accessibilityElement(children: .contain)
-        .accessibilityHint("Opens the tutorial")
+        .interactiveDismissDisabled()
+        .onAppear {
+            addProgressObserver()
+            playVideo(for: selectedStep)
+        }
+        .onChange(of: selectedStep) { _, _ in
+            activeVideoProgress = 0
+            playVideo(for: selectedStep)
+        }
+        .onDisappear {
+            player.pause()
+            player.replaceCurrentItem(with: nil)
+            removePlaybackObservers()
+        }
     }
 
+    private func progress(for index: Int) -> Double {
+        if index < selectedStep {
+            return 1
+        }
+
+        if index == selectedStep {
+            return activeVideoProgress
+        }
+
+        return 0
+    }
+
+    private func playVideo(for stepIndex: Int) {
+        guard let resourceName = tutorial.stepVideoResourceName(at: stepIndex),
+              let url = Bundle.main.url(forResource: resourceName, withExtension: "mp4") else {
+            player.pause()
+            player.replaceCurrentItem(with: nil)
+            removeEndObserver()
+            return
+        }
+
+        player.pause()
+        let item = AVPlayerItem(url: url)
+        player.replaceCurrentItem(with: item)
+        observeEnd(of: item)
+        player.seek(
+            to: .zero,
+            toleranceBefore: .zero,
+            toleranceAfter: .zero
+        ) { finished in
+            guard finished, player.currentItem === item else {
+                return
+            }
+
+            player.play()
+        }
+    }
+
+    private func addProgressObserver() {
+        if let timeObserver {
+            player.removeTimeObserver(timeObserver)
+        }
+
+        let interval = CMTime(value: 1, timescale: 30)
+        timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { time in
+            let duration = player.currentItem?.duration.seconds ?? 0
+            guard player.rate > 0, duration.isFinite, duration > 0 else {
+                return
+            }
+
+            activeVideoProgress = min(max(time.seconds / duration, 0), 1)
+        }
+    }
+
+    private func observeEnd(of item: AVPlayerItem) {
+        removeEndObserver()
+        endObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: item,
+            queue: .main
+        ) { _ in
+            activeVideoProgress = 1
+            moveToNextStep()
+        }
+    }
+
+    private func removePlaybackObservers() {
+        if let timeObserver {
+            player.removeTimeObserver(timeObserver)
+            self.timeObserver = nil
+        }
+
+        removeEndObserver()
+    }
+
+    private func removeEndObserver() {
+        if let endObserver {
+            NotificationCenter.default.removeObserver(endObserver)
+            self.endObserver = nil
+        }
+    }
+
+    private func moveToPreviousStep() {
+        guard selectedStep > 0 else {
+            return
+        }
+
+        withAnimation(.easeInOut) {
+            selectedStep -= 1
+        }
+    }
+
+    private func moveToPreviousStep(showingFeedbackAt edge: HorizontalEdge) {
+        showTapFeedback(at: edge)
+        moveToPreviousStep()
+    }
+
+    private func moveToNextStep() {
+        guard selectedStep < tutorial.steps.count else {
+            return
+        }
+
+        withAnimation(.easeInOut) {
+            selectedStep += 1
+        }
+    }
+
+    private func moveToNextStep(showingFeedbackAt edge: HorizontalEdge) {
+        showTapFeedback(at: edge)
+        moveToNextStep()
+    }
+
+    private func showTapFeedback(at edge: HorizontalEdge) {
+        withAnimation(.easeOut(duration: 0.12)) {
+            tapFeedbackEdge = edge
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            guard tapFeedbackEdge == edge else {
+                return
+            }
+
+            withAnimation(.easeOut(duration: 0.22)) {
+                tapFeedbackEdge = nil
+            }
+        }
+    }
+}
+
+private struct AITutorialStoryCompletionSlide: View {
+    let tutorial: AITutorial
+    let onTryItYourself: () -> Void
+    let onNextTutorial: () -> Void
+    let onPrevious: () -> Void
+
+    var body: some View {
+        ZStack {
+            GeometryReader { proxy in
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: onPrevious)
+                    .frame(width: proxy.size.width / 2)
+            }
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 24)
+
+                VStack(spacing: 24) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 76))
+                        .foregroundStyle(.green)
+
+                    VStack(spacing: 12) {
+                        Text(tutorial.completionTitle)
+                            .font(.largeTitle.weight(.bold))
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity, alignment: .center)
+
+                        Text(tutorial.completionDetail)
+                            .font(.title3)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.white.opacity(0.82))
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+
+                    Button("Try it now", action: onTryItYourself)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .tint(.white)
+                        .foregroundStyle(Color.accentColor)
+                        .frame(maxWidth: 280, minHeight: 56)
+                }
+
+                Spacer(minLength: 24)
+
+                Button("Start next tutorial", action: onNextTutorial)
+                    .buttonStyle(.bordered)
+                    .tint(.white)
+                    .padding(.bottom, 28)
+            }
+            .padding(.horizontal, 32)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        }
+        .foregroundStyle(.white)
+    }
+}
+
+private struct AITutorialStorySlide: View {
+    let tutorial: AITutorial
+    let step: AITutorialStep
+    let stepIndex: Int
+    let isActive: Bool
+    let player: AVPlayer
+
+    var body: some View {
+        VStack(spacing: 28) {
+            if tutorial.stepVideoResourceName(at: stepIndex) != nil {
+                AITutorialStoryVideo(player: player)
+                .frame(maxWidth: 260)
+            } else {
+                AITutorialStepArtwork(
+                    assetName: tutorial.stepImageAssetName(at: stepIndex),
+                    symbol: tutorial.thumbnailSymbol,
+                    stepNumber: stepIndex + 1
+                )
+                .frame(maxWidth: 260)
+            }
+
+            VStack(spacing: 12) {
+                Text(step.title)
+                    .font(.largeTitle.weight(.bold))
+                    .multilineTextAlignment(.center)
+
+                Text(step.detail)
+                    .font(.title3)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.white.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .opacity(isActive ? 1 : 0)
+            .animation(.easeIn(duration: 0.3), value: isActive)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 32)
+    }
+}
+
+private struct AITutorialStoryVideo: View {
+    let player: AVPlayer
+
+    var body: some View {
+        VideoPlayer(player: player)
+            .aspectRatio(9.0 / 16.0, contentMode: .fit)
+            .background(.black, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .accessibilityLabel("Tutorial video")
+    }
 }
 
 private struct AITutorialDrawer: View {
     @Binding var isAuthorizedPersonComplete: Bool
     @Binding var isCrewComplete: Bool
     @Binding var isAIComplete: Bool
+    let tutorial: AITutorial
     let onOpenDestination: (AITutorial) -> Void
 
-    @State private var selectedTutorial: AITutorial
+    @State private var selectedStep = 0
     @Environment(\.dismiss) private var dismiss
 
     init(
@@ -818,7 +1533,7 @@ private struct AITutorialDrawer: View {
         isAIComplete: Binding<Bool>,
         onOpenDestination: @escaping (AITutorial) -> Void
     ) {
-        _selectedTutorial = State(initialValue: tutorial)
+        self.tutorial = tutorial
         _isAuthorizedPersonComplete = isAuthorizedPersonComplete
         _isCrewComplete = isCrewComplete
         _isAIComplete = isAIComplete
@@ -827,20 +1542,27 @@ private struct AITutorialDrawer: View {
 
     var body: some View {
         NavigationStack {
-            TabView(selection: $selectedTutorial) {
-                ForEach(AITutorial.allCases) { tutorial in
-                    AITutorialPage(
+            TabView(selection: $selectedStep) {
+                ForEach(Array(tutorial.steps.enumerated()), id: \.offset) { index, step in
+                    AITutorialStepPage(
                         tutorial: tutorial,
-                        isComplete: completionBinding(for: tutorial),
-                        isSelected: selectedTutorial == tutorial,
-                        selectedTutorial: $selectedTutorial,
+                        step: step,
+                        stepNumber: index + 1,
+                        totalSteps: tutorial.steps.count,
+                        selectedStep: $selectedStep,
+                        isFinalStep: index == tutorial.steps.indices.last,
                         onOpenDestination: onOpenDestination
                     )
-                    .tag(tutorial)
+                    .tag(index)
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .navigationTitle("Getting started")
+            .onChange(of: selectedStep) { _, step in
+                if step == tutorial.steps.indices.last {
+                    isComplete.wrappedValue = true
+                }
+            }
+            .navigationTitle(tutorial.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -852,7 +1574,7 @@ private struct AITutorialDrawer: View {
         }
     }
 
-    private func completionBinding(for tutorial: AITutorial) -> Binding<Bool> {
+    private var isComplete: Binding<Bool> {
         switch tutorial {
         case .authorizeDriver:
             return $isAuthorizedPersonComplete
@@ -862,83 +1584,65 @@ private struct AITutorialDrawer: View {
             return $isAIComplete
         }
     }
+
 }
 
-private struct AITutorialPage: View {
+private struct AITutorialStepPage: View {
     let tutorial: AITutorial
-    @Binding var isComplete: Bool
-    let isSelected: Bool
-    @Binding var selectedTutorial: AITutorial
+    let step: AITutorialStep
+    let stepNumber: Int
+    let totalSteps: Int
+    @Binding var selectedStep: Int
+    let isFinalStep: Bool
     let onOpenDestination: (AITutorial) -> Void
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                AITutorialVideoPlayer(
-                    tutorial: tutorial,
-                    isSelected: isSelected
+                AITutorialStepArtwork(
+                    assetName: tutorial.stepImageAssetName(at: stepNumber - 1),
+                    symbol: tutorial.thumbnailSymbol,
+                    stepNumber: stepNumber
                 )
 
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(tutorial.title)
+                    Text("Step \(stepNumber) of \(totalSteps)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.blue)
+
+                    Text(step.title)
                         .font(.title.bold())
 
-                    Text(tutorial.article)
-                        .font(.subheadline)
+                    Text(step.detail)
+                        .font(.body)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Steps")
-                        .font(.headline)
+                AITutorialStepPagination(
+                    selectedStep: $selectedStep,
+                    stepCount: totalSteps
+                )
 
-                    ForEach(Array(tutorial.steps.enumerated()), id: \.offset) { index, step in
-                        HStack(alignment: .top, spacing: 12) {
-                            Text("\(index + 1)")
-                                .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.white)
-                                .frame(width: 28, height: 28)
-                                .background(.blue, in: Circle())
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(step.title)
-                                    .font(.subheadline.weight(.semibold))
-
-                                Text(step.detail)
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .fixedSize(horizontal: false, vertical: true)
-                        }
+                if isFinalStep {
+                    Button {
+                        onOpenDestination(tutorial)
+                    } label: {
+                        Label(destinationTitle, systemImage: destinationImage)
+                            .frame(maxWidth: .infinity, minHeight: 40)
                     }
+                    .buttonStyle(.borderedProminent)
                 }
-
-                destinationLink
-
-                Button {
-                    isComplete.toggle()
-                    HapticFeedback.lightImpact()
-                } label: {
-                    Label(
-                        isComplete ? "Marked as done" : "Mark as done",
-                        systemImage: isComplete ? "checkmark.circle.fill" : "checkmark.circle"
-                    )
-                    .frame(maxWidth: .infinity, minHeight: 40)
-                }
-                .buttonStyle(.bordered)
-                .tint(isComplete ? .green : .blue)
-
-                tutorialPagination
             }
             .padding(20)
             .padding(.bottom, 24)
         }
+        .accessibilityLabel("\(tutorial.title), step \(stepNumber) of \(totalSteps). \(step.title). \(step.detail)")
     }
 
     private var destinationTitle: String {
         switch tutorial {
-        case .authorizeDriver: "Open Now"
+        case .authorizeDriver: "Open People"
         case .inviteTeam: "Open Team"
         case .askAI: "Open Birdseye AI"
         }
@@ -950,30 +1654,66 @@ private struct AITutorialPage: View {
         case .askAI: "sparkles"
         }
     }
+}
 
-    private var destinationLink: some View {
-        Button {
-            onOpenDestination(tutorial)
-        } label: {
-            Label(destinationTitle, systemImage: destinationImage)
-                .frame(maxWidth: .infinity, minHeight: 40)
+private struct AITutorialStepArtwork: View {
+    let assetName: String?
+    let symbol: String
+    let stepNumber: Int
+
+    var body: some View {
+        Group {
+            if let assetName {
+                Image(assetName)
+                    .resizable()
+                    .scaledToFit()
+                    .background(Color(.secondarySystemBackground))
+            } else {
+                ZStack {
+                    LinearGradient(
+                        colors: [.blue.opacity(0.9), .indigo.opacity(0.75)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+
+                    Image(systemName: symbol)
+                        .font(.system(size: 72, weight: .semibold))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(.white)
+
+                    Text("\(stepNumber)")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.blue)
+                        .frame(width: 36, height: 36)
+                        .background(.white, in: Circle())
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                        .padding(16)
+                }
+                .aspectRatio(1, contentMode: .fit)
+            }
         }
-        .buttonStyle(.borderedProminent)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .accessibilityHidden(true)
     }
+}
 
-    private var tutorialPagination: some View {
+private struct AITutorialStepPagination: View {
+    @Binding var selectedStep: Int
+    let stepCount: Int
+
+    var body: some View {
         HStack(spacing: 8) {
-            ForEach(AITutorial.allCases) { page in
+            ForEach(0..<stepCount, id: \.self) { index in
                 Button {
-                    selectedTutorial = page
+                    selectedStep = index
                 } label: {
                     Capsule()
-                        .fill(page == tutorial ? Color.blue : Color.secondary.opacity(0.3))
-                        .frame(width: page == tutorial ? 18 : 6, height: 6)
+                        .fill(index == selectedStep ? Color.blue : Color.secondary.opacity(0.3))
+                        .frame(width: index == selectedStep ? 18 : 6, height: 6)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Show \(page.title) tutorial")
-                .accessibilityAddTraits(page == tutorial ? .isSelected : [])
+                .accessibilityLabel("Show step \(index + 1)")
+                .accessibilityAddTraits(index == selectedStep ? .isSelected : [])
             }
         }
         .frame(maxWidth: .infinity)
@@ -984,11 +1724,13 @@ private struct AITutorialPage: View {
 private struct AITutorialVideoPlayer: View {
     let tutorial: AITutorial
     let isSelected: Bool
+    let onPlaybackStarted: () -> Void
     @State private var player: AVPlayer?
 
-    init(tutorial: AITutorial, isSelected: Bool) {
+    init(tutorial: AITutorial, isSelected: Bool, onPlaybackStarted: @escaping () -> Void) {
         self.tutorial = tutorial
         self.isSelected = isSelected
+        self.onPlaybackStarted = onPlaybackStarted
         let videoURL = Bundle.main.url(
             forResource: "TutorialPlaceholder",
             withExtension: "mp4"
@@ -1032,6 +1774,7 @@ private struct AITutorialVideoPlayer: View {
     private func updatePlayback(for player: AVPlayer) {
         if isSelected {
             player.play()
+            onPlaybackStarted()
         } else {
             player.pause()
         }

@@ -2,8 +2,20 @@ import SwiftUI
 
 struct OrganizationPickerControl: View {
     @Binding var selection: String
+    let locationName: String
+    let showsAddOrganizationAction: Bool
 
     @State private var isShowingOrganizationPicker = false
+
+    init(
+        selection: Binding<String>,
+        locationName: String = "Northstar (Oshawa)",
+        showsAddOrganizationAction: Bool = true
+    ) {
+        _selection = selection
+        self.locationName = locationName
+        self.showsAddOrganizationAction = showsAddOrganizationAction
+    }
 
     var body: some View {
         Button {
@@ -30,7 +42,11 @@ struct OrganizationPickerControl: View {
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $isShowingOrganizationPicker) {
-            OrganizationSelectionDrawer(selection: $selection)
+            OrganizationSelectionDrawer(
+                selection: $selection,
+                locationName: locationName,
+                showsAddOrganizationAction: showsAddOrganizationAction
+            )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
         }
@@ -41,13 +57,13 @@ private struct OrganizationSelectionDrawer: View {
     @Environment(\.dismiss) private var dismiss
 
     @Binding var selection: String
+    let locationName: String
+    let showsAddOrganizationAction: Bool
 
     @State private var searchText = ""
     @State private var isShowingAddOrganization = false
 
     @FocusState private var isSearchFieldFocused: Bool
-
-    private let locationName = "Northstar (Oshawa)"
 
     private var filteredOrganizations: [OrganizationRecord] {
         let trimmedSearch = searchText.trimmingCharacters(
@@ -111,11 +127,13 @@ private struct OrganizationSelectionDrawer: View {
                     }
                 }
 
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Add new") {
-                        isShowingAddOrganization = true
+                if showsAddOrganizationAction {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Add new") {
+                            isShowingAddOrganization = true
+                        }
+                        .tint(.primary)
                     }
-                    .tint(.primary)
                 }
             }
             .sheet(isPresented: $isShowingAddOrganization) {
