@@ -438,8 +438,8 @@ struct AuthorizedPeopleOperationsView: View {
         },
         onOpenAccessPolicy: {
           tutorialStep = .accessPolicy
-        }
-      ) { person, policy in
+        },
+        onSave: { person, policy in
         let entry = AuthorizedPeopleDirectoryEntry(
           person: person,
           locations: policy.locations == "All locations"
@@ -471,7 +471,7 @@ struct AuthorizedPeopleOperationsView: View {
             }
           }
         )
-      }
+      })
       .permissionReadOnlyEditor(.authorizedPeople)
     }
     .sheet(item: $selectedPerson) { person in
@@ -1186,12 +1186,57 @@ struct DirectoryPaginationFooter: View {
 }
 
 
+private struct TutorialShortcutButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: "questionmark.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.blue)
+
+                HStack(spacing: 4) {
+                    Text("Need help?")
+                        .foregroundStyle(.secondary)
+                    Text("Watch a tutorial")
+                        .foregroundStyle(.blue)
+                }
+                .font(.body.weight(.medium))
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "play.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.blue)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+            .background(
+                Color.blue.opacity(0.08),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.blue.opacity(0.14), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(Color.clear)
+        .accessibilityLabel("Need help? Watch a tutorial")
+        .accessibilityHint("Opens the authorized driver tutorial.")
+    }
+}
+
 struct AddPersonAuthorizationView: View {
 
     let isPersonTutorialActive: Bool
     let onCancelTutorial: () -> Void
     let onOpenAccessPolicy: () -> Void
     let onCompleteTutorial: () -> Void
+    let showsTutorialShortcut: Bool
+    let onWatchTutorial: () -> Void
     var onSave: (ExistingPerson, AccessPolicy) -> Void
 
     init(
@@ -1199,12 +1244,16 @@ struct AddPersonAuthorizationView: View {
         onCancelTutorial: @escaping () -> Void = {},
         onOpenAccessPolicy: @escaping () -> Void = {},
         onCompleteTutorial: @escaping () -> Void = {},
+        showsTutorialShortcut: Bool = false,
+        onWatchTutorial: @escaping () -> Void = {},
         onSave: @escaping (ExistingPerson, AccessPolicy) -> Void = { _, _ in }
     ) {
         self.isPersonTutorialActive = isPersonTutorialActive
         self.onCancelTutorial = onCancelTutorial
         self.onOpenAccessPolicy = onOpenAccessPolicy
         self.onCompleteTutorial = onCompleteTutorial
+        self.showsTutorialShortcut = showsTutorialShortcut
+        self.onWatchTutorial = onWatchTutorial
         self.onSave = onSave
         _tutorialRequiredField = State(initialValue: isPersonTutorialActive ? .fullName : nil)
     }
@@ -1565,6 +1614,19 @@ struct AddPersonAuthorizationView: View {
         NavigationStack {
 
             Form {
+                if showsTutorialShortcut {
+                    TutorialShortcutButton(action: onWatchTutorial)
+                        .listRowInsets(
+                            EdgeInsets(
+                                top: 0,
+                                leading: 0,
+                                bottom: 0,
+                                trailing: 0
+                            )
+                        )
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                }
 
                 quickScanSection
 
@@ -1636,7 +1698,6 @@ struct AddPersonAuthorizationView: View {
                 .listRowSeparator(.hidden)
 
                 .listRowBackground(Color.clear)
-
             }
 
             .contentMargins(

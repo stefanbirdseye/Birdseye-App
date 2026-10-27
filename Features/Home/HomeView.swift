@@ -50,6 +50,7 @@ struct HomeView: View {
     @State private var isLocationTipPresented = false
     @State private var isPersonTutorialActive = false
     @State private var activeLearnBasicsStory: LearnBasicsStory?
+    @AppStorage("onboardingAuthorizedPersonComplete") private var isAuthorizeFirstDriverTutorialComplete = false
     @AppStorage("learnBasicsExploreComplete") private var isLearnBasicsExploreComplete = false
     @AppStorage("learnBasicsTeamComplete") private var isLearnBasicsTeamComplete = false
     @AppStorage("learnBasicsAccessComplete") private var isLearnBasicsAccessComplete = false
@@ -102,9 +103,7 @@ struct HomeView: View {
                         onAbandonPersonTutorial: {
                             isPersonTutorialActive = false
                         },
-                        onAdd: { sheet in
-                            activeCreateSheet = sheet
-                        },
+                        onAdd: openCreateSheet,
                         onAIAction: onAIAction
                     )
                     .id(selectedLocation.id)
@@ -136,7 +135,12 @@ struct HomeView: View {
                         },
                         onCompleteTutorial: {
                             isPersonTutorialActive = false
-                            snackbarCenter.show("Completed a tutorial: Authorized a driver.")
+                            snackbarCenter.show("You're all set — your driver is authorized.")
+                        },
+                        showsDriverTutorial: !isAuthorizeFirstDriverTutorialComplete,
+                        onDriverTutorialComplete: {
+                            isAuthorizeFirstDriverTutorialComplete = true
+                            isPersonTutorialActive = true
                         }
                     )
                 case .organization:
@@ -217,6 +221,10 @@ struct HomeView: View {
         ]
     }
 
+    private func openCreateSheet(_ sheet: HomeCreateSheet) {
+        activeCreateSheet = sheet
+    }
+
     private func completeLearnBasicsStory(_ story: LearnBasicsStory) {
         switch story {
         case .start:
@@ -231,7 +239,10 @@ struct HomeView: View {
             await HomeAddRegularDriverTip().resetEligibility()
         }
         isPersonTutorialActive = true
-        activeCreateSheet = .person
+
+        if case .start = story {
+            snackbarCenter.show("Got it — tap the highlighted + to add your first driver.")
+        }
     }
 
 }
@@ -770,7 +781,6 @@ private struct LocationDashboardContent: View {
 
             MetricGrid(
                 location: location,
-                isPersonTutorialActive: isPersonTutorialActive,
                 onAdd: onAdd
             )
 
@@ -813,7 +823,6 @@ private struct LocationDashboardContent: View {
 private struct MetricGrid: View {
 
     let location: LocationSummary
-    let isPersonTutorialActive: Bool
     let onAdd: (HomeCreateSheet) -> Void
 
     private let columns = [
@@ -835,7 +844,6 @@ private struct MetricGrid: View {
                 tint: .blue,
                 destination: AuthorizedPeopleOperationsView()
                     .permissionProtected(.authorizedPeople),
-                isHighlighted: isPersonTutorialActive,
                 onAdd: { onAdd(.person) }
             )
 
@@ -847,7 +855,6 @@ private struct MetricGrid: View {
                 tint: .blue,
                 destination: AuthorizedOrganizationsOperationsView()
                     .permissionProtected(.authorizedOrganizations),
-                isHighlighted: false,
                 onAdd: { onAdd(.organization) }
             )
 
@@ -859,7 +866,6 @@ private struct MetricGrid: View {
                 tint: .blue,
                 destination: EquipmentOperationsView()
                     .permissionProtected(.authorizedEquipment),
-                isHighlighted: false,
                 onAdd: { onAdd(.equipment) }
             )
 
@@ -871,7 +877,6 @@ private struct MetricGrid: View {
                 tint: .blue,
                 destination: AppointmentsOperationsView()
                     .permissionProtected(.appointments),
-                isHighlighted: false,
                 onAdd: { onAdd(.appointment) }
             )
         }
@@ -907,10 +912,7 @@ private struct MetricCard<Destination: View>: View {
     let systemImage: String
     let tint: Color
     let destination: Destination
-    let isHighlighted: Bool
     let onAdd: () -> Void
-
-    @State private var isHighlightPulseActive = false
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -994,38 +996,14 @@ private struct MetricCard<Destination: View>: View {
             Button(action: onAdd) {
                 Image(systemName: "plus")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.primary)
                     .frame(width: 30, height: 30)
-                    .background(
-                        .primary.opacity(0.12),
-                        in: Circle()
-                    )
-                    .overlay {
-                        if isHighlighted {
-                            Circle()
-                                .stroke(.blue, lineWidth: 3)
-                                .padding(-6)
-                                .scaleEffect(isHighlightPulseActive ? 1.24 : 1)
-                                .opacity(isHighlightPulseActive ? 0.28 : 1)
-                                .animation(
-                                    .easeInOut(duration: 1)
-                                        .repeatForever(autoreverses: true),
-                                    value: isHighlightPulseActive
-                                )
-                        }
-                    }
-                    .symbolEffect(.pulse, isActive: isHighlighted)
+                    .background(Color.primary.opacity(0.12), in: Circle())
             }
             .buttonStyle(.plain)
             .padding(12)
             .contentShape(Circle())
             .accessibilityLabel("Add \(title)")
-        }
-        .onAppear {
-            isHighlightPulseActive = isHighlighted
-        }
-        .onChange(of: isHighlighted) { _, isHighlighted in
-            isHighlightPulseActive = isHighlighted
         }
     }
 }

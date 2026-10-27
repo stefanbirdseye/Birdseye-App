@@ -67,7 +67,7 @@ struct TeamView: View {
 
                 ) {
 
-                    BirdseyePageTitle(title: "Team")
+                    BirdseyePageTitle(title: "Users")
                         .padding(.top, 16)
 
                     InviteTeamActionCard(
@@ -107,7 +107,7 @@ struct TeamView: View {
 
                             locationCount: locationCount,
 
-                            status: .invited
+                            status: .active
 
                         )
 
@@ -134,7 +134,7 @@ struct TeamView: View {
 
         ) {
 
-            Text("Workspace members")
+            Text("Workspace users")
 
                 .font(.subheadline.weight(.semibold))
 
@@ -151,12 +151,6 @@ struct TeamView: View {
                         TeamMemberView(
 
                             member: memberBinding(for: member.id),
-
-                            onRemoveInvite: {
-
-                                members.removeAll { $0.id == member.id }
-
-                            }
 
                         )
 
@@ -253,7 +247,7 @@ private struct TeamActionCardCarousel: View {
                 )
 
                 TeamActionCard(
-                    title: "Invite a member",
+                    title: "Invite a user",
                     description: "Manage access, view activity, and submit requests together in Birdseye.",
                     iconName: "person.2.badge.plus",
                     actionLabel: "Email address",
@@ -276,7 +270,7 @@ private struct TeamActionCardCarousel: View {
         .contentMargins(.horizontal, -16, for: .scrollContent)
         .scrollIndicators(.hidden)
         .scrollTargetBehavior(.viewAligned)
-        .accessibilityLabel("Team actions")
+        .accessibilityLabel("User actions")
     }
 }
 
@@ -400,6 +394,9 @@ struct InviteTeamMemberView: View {
 
     ]
 
+    @State private var isInviteTutorialPresented = false
+    @State private var hasCompletedInviteTutorial = false
+
     private var canSend: Bool {
 
         !email
@@ -440,6 +437,11 @@ struct InviteTeamMemberView: View {
 
                 ) {
 
+                    InviteTutorialShortcutButton {
+                        hasCompletedInviteTutorial = false
+                        isInviteTutorialPresented = true
+                    }
+
                     memberDetails
 
                     Divider()
@@ -462,7 +464,7 @@ struct InviteTeamMemberView: View {
 
             )
 
-            .navigationTitle("Invite team member")
+            .navigationTitle("Invite user")
 
             .navigationBarTitleDisplayMode(.inline)
 
@@ -504,6 +506,23 @@ struct InviteTeamMemberView: View {
 
             }
 
+        }
+        .fullScreenCover(isPresented: $isInviteTutorialPresented) {
+            AITutorialStoryExperience(
+                tutorial: .inviteTeam,
+                isComplete: $hasCompletedInviteTutorial,
+                onDismiss: {
+                    isInviteTutorialPresented = false
+                },
+                onTryItYourself: {
+                    isInviteTutorialPresented = false
+                },
+                onNextTutorial: {},
+                completionTitle: "Ready to invite a user?",
+                completionDetail: "You can revisit this invite-user tutorial anytime from this screen.",
+                completionActionTitle: "Invite a user",
+                showsNextTutorialButton: false
+            )
         }
 
     }
@@ -614,7 +633,49 @@ struct InviteTeamMemberView: View {
 
 }
 
+// MARK: - Tutorial shortcut
 
+private struct InviteTutorialShortcutButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: "questionmark.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.blue)
+
+                HStack(spacing: 4) {
+                    Text("Need help?")
+                        .foregroundStyle(.secondary)
+                    Text("Watch a tutorial")
+                        .foregroundStyle(.blue)
+                }
+                .font(.body.weight(.medium))
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "play.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.blue)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+            .background(
+                Color.blue.opacity(0.08),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.blue.opacity(0.14), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Need help? Watch a tutorial")
+        .accessibilityHint("Opens the Help Center.")
+    }
+}
 
 // MARK: - Organization
 
@@ -1782,11 +1843,7 @@ struct TeamMemberRow: View {
 
 struct TeamMemberView: View {
 
-    @Environment(\.dismiss) private var dismiss
-
     @Binding var member: TeamMember
-
-    let onRemoveInvite: (() -> Void)?
 
     @State private var organizations: [InviteOrganization] = [.northstar]
 
@@ -1800,15 +1857,11 @@ struct TeamMemberView: View {
 
     init(
 
-        member: Binding<TeamMember>,
-
-        onRemoveInvite: (() -> Void)? = nil
+        member: Binding<TeamMember>
 
     ) {
 
         _member = member
-
-        self.onRemoveInvite = onRemoveInvite
 
     }
 
@@ -1820,15 +1873,15 @@ struct TeamMemberView: View {
 
                 TeamMemberDetailsSection(
 
-                    email: $member.email
+                    email: $member.email,
+
+                    isEmailEditable: false
 
                 )
 
                 TeamMemberStatusSection(
 
-                    status: $member.status,
-
-                    onRemoveInvite: removeInvite
+                    status: $member.status
 
                 )
 
@@ -1906,14 +1959,6 @@ struct TeamMemberView: View {
 
     }
 
-    private func removeInvite() {
-
-        onRemoveInvite?()
-
-        dismiss()
-
-    }
-
 }
 
 
@@ -1921,6 +1966,16 @@ struct TeamMemberView: View {
 private struct TeamMemberDetailsSection: View {
 
     @Binding var email: String
+
+    let isEmailEditable: Bool
+
+    init(email: Binding<String>, isEmailEditable: Bool = true) {
+
+        _email = email
+
+        self.isEmailEditable = isEmailEditable
+
+    }
 
     var body: some View {
 
@@ -1939,6 +1994,7 @@ private struct TeamMemberDetailsSection: View {
                 textContentType: .emailAddress
 
             )
+            .disabled(!isEmailEditable)
 
             Text("They’ll receive an email to set their password and use this email to sign in.")
                 .font(.footnote)
@@ -1952,8 +2008,6 @@ private struct TeamMemberDetailsSection: View {
 private struct TeamMemberStatusSection: View {
 
     @Binding var status: TeamMemberStatus
-
-    let onRemoveInvite: () -> Void
 
     private var isActive: Binding<Bool> {
 
@@ -1987,25 +2041,15 @@ private struct TeamMemberStatusSection: View {
 
                 Spacer()
 
-                if status == .invited {
+                HStack(spacing: 10) {
 
-                    Text("Invited")
+                    Text(status == .active ? "Active" : "Inactive")
 
                         .foregroundStyle(.secondary)
 
-                } else {
+                    Toggle("", isOn: isActive)
 
-                    HStack(spacing: 10) {
-
-                        Text(status == .active ? "Active" : "Inactive")
-
-                            .foregroundStyle(.secondary)
-
-                        Toggle("", isOn: isActive)
-
-                            .labelsHidden()
-
-                    }
+                        .labelsHidden()
 
                 }
 
@@ -2016,31 +2060,6 @@ private struct TeamMemberStatusSection: View {
                 .font(.footnote)
 
                 .foregroundStyle(.secondary)
-
-            if status == .invited {
-
-                Button(role: .destructive) {
-
-                    HapticFeedback.criticalAction()
-
-                    onRemoveInvite()
-
-                } label: {
-
-                    Label(
-                        "Remove invite",
-                        systemImage: "person.crop.circle.badge.xmark"
-                    )
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 4)
-                    .frame(minHeight: 34)
-
-                }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
-                .tint(.red)
-
-            }
 
         }
 
@@ -2082,8 +2101,6 @@ private struct TeamMemberPermissionsSection: View {
 
     let onDeleteOrganization: (UUID) -> Void
 
-    @State private var isPermissionCopyPresented = false
-
     var body: some View {
 
         VStack(alignment: .leading, spacing: 16) {
@@ -2124,7 +2141,7 @@ private struct TeamMemberPermissionsSection: View {
 
                         Label(
 
-                            "Add org",
+                            "Add organization",
 
                             systemImage: "plus"
 
@@ -2137,36 +2154,6 @@ private struct TeamMemberPermissionsSection: View {
                     .buttonBorderShape(.capsule)
 
                 }
-
-                Menu {
-
-                    Button {
-
-                        isPermissionCopyPresented = true
-
-                    } label: {
-
-                        Label(
-
-                            "Copy another user's permissions",
-
-                            systemImage: "person.2"
-
-                        )
-
-                    }
-
-                } label: {
-
-                    Image(systemName: "ellipsis")
-
-                        .frame(width: 24, height: 24)
-
-                }
-
-                .buttonStyle(.glass)
-
-                .buttonBorderShape(.circle)
 
             }
 
@@ -2211,18 +2198,6 @@ private struct TeamMemberPermissionsSection: View {
                     }
 
                 }
-
-            }
-
-        }
-
-        .sheet(isPresented: $isPermissionCopyPresented) {
-
-            PermissionCopyUserDrawer { source in
-
-                organizations = source.organizations
-
-                isPermissionCopyPresented = false
 
             }
 
@@ -2384,8 +2359,6 @@ struct TeamMember: Identifiable {
 
 enum TeamMemberStatus: Hashable {
 
-    case invited
-
     case active
 
     case inactive
@@ -2393,10 +2366,6 @@ enum TeamMemberStatus: Hashable {
     var title: LocalizedStringResource {
 
         switch self {
-
-        case .invited:
-
-            "Invited"
 
         case .active:
 
@@ -2414,10 +2383,6 @@ enum TeamMemberStatus: Hashable {
 
         switch self {
 
-        case .invited:
-
-            .orange
-
         case .active:
 
             .blue
@@ -2433,10 +2398,6 @@ enum TeamMemberStatus: Hashable {
     var backgroundColor: Color {
 
         switch self {
-
-        case .invited:
-
-            .orange.opacity(0.18)
 
         case .active:
 
@@ -2454,17 +2415,13 @@ enum TeamMemberStatus: Hashable {
 
         switch self {
 
-        case .invited:
+        case .active:
 
             0
 
-        case .active:
-
-            1
-
         case .inactive:
 
-            2
+            1
 
         }
 
@@ -2473,10 +2430,6 @@ enum TeamMemberStatus: Hashable {
     var description: LocalizedStringResource {
 
         switch self {
-
-        case .invited:
-
-            "This invitation must be removed before the user's status can change."
 
         case .active:
 

@@ -16,7 +16,7 @@ enum MainTab: Hashable {
         case .ai:
             "Birdseye AI"
         case .team:
-            "Team"
+            "Users"
         case .profile:
             "Profile"
         }
@@ -292,7 +292,7 @@ struct MainTabView: View {
             }
 
             Tab(
-                "Team",
+                "Users",
                 systemImage: "person.2",
                 value: MainTab.team
             ) {

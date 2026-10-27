@@ -33,7 +33,7 @@ enum AppPermission: String, CaseIterable, Hashable {
         case .requestTickets:
             "Requests"
         case .usersAndPermissions:
-            "Team"
+            "Users"
         case .equipment:
             "Equipment"
         case .activityMedia:

@@ -125,7 +125,7 @@ private struct HelpStartHereSection: View {
 
     private let guides = [
         HelpStarterGuide(title: "Authorize a regular driver", detail: "Give a driver, employee, contractor, or visitor access.", systemImage: "person.text.rectangle"),
-        HelpStarterGuide(title: "Invite your team members", detail: "Invite coworkers to manage your workspace together.", systemImage: "person.2.badge.plus"),
+        HelpStarterGuide(title: "Invite users", detail: "Invite coworkers to manage your workspace together.", systemImage: "person.2.badge.plus"),
         HelpStarterGuide(title: "Ask AI to do anything", detail: "Use Birdseye AI to find records and start common tasks.", systemImage: "sparkles"),
         HelpStarterGuide(title: "Send a request to Birdseye", detail: "Ask for footage, a service update, or help from support.", systemImage: "envelope"),
         HelpStarterGuide(title: "Add an appointment", detail: "Schedule an expected arrival before it reaches your location.", systemImage: "calendar.badge.plus"),
@@ -149,7 +149,7 @@ private struct HelpStartHereSection: View {
             }
 
             ScrollView(.horizontal) {
-                LazyHStack(spacing: 18) {
+                LazyHStack(alignment: .top, spacing: 18) {
                     ForEach(guides) { guide in
                         NavigationLink {
                             HelpStarterGuideDetail(guide: guide)
@@ -598,6 +598,7 @@ private struct HelpArticleSection: View {
                 }
             } else {
                 Text(section.title).font(.title3.weight(.semibold))
+
                 if let introduction = section.introduction {
                     Text(introduction).font(.body).foregroundStyle(.secondary)
                 }
@@ -813,42 +814,42 @@ private struct HelpTopic: Identifiable {
                 .manual("Do it manually", ["Open Appointments and find the visit.", "Edit the required details.", "Tap Save."])
             ])
         ]),
-        HelpTopic(id: "team", title: "Team", summary: "Invite members and manage workspace access.", systemImage: "person.2.fill", tint: .blue, articles: [
-            article("invite-team-member", "How to invite a team member", "Invite someone to your Birdseye workspace.", "person.badge.plus", "team", "Team", [
-                .manual("Do it manually", ["Open Team and tap Invite member.", "Enter the member's email address.", "Assign organizations, locations, and feature permissions.", "Send the invitation."]),
-                .ai("Invite alex.morgan@northstar.com to the team with access to Northstar Dallas."),
-                .faq([("Can I assign multiple locations?", "Yes. Members can have access to multiple locations and organizations."), ("Can I change permissions later?", "Yes. Open their profile and edit Permissions.")])
+        HelpTopic(id: "team", title: "Users", summary: "Invite users and manage workspace access.", systemImage: "person.2.fill", tint: .blue, articles: [
+            article("invite-team-member", "How to invite a user", "Invite someone to your Birdseye workspace.", "person.badge.plus", "team", "Users", [
+                .manual("Do it manually", ["Open Users and tap Invite user.", "Enter the user's email address.", "Assign organizations, locations, and feature permissions.", "Send the invitation."]),
+                .ai("Invite alex.morgan@northstar.com as a user with access to Northstar Dallas."),
+                .faq([("Can I assign multiple locations?", "Yes. Users can have access to multiple locations and organizations."), ("Can I change permissions later?", "Yes. Open their profile and edit Permissions.")])
             ]),
-            article("find-team-member", "How to find a team member", "Review members and their current status.", "person.crop.circle", "team", "Team", [
-                .manual("Do it manually", ["Open Team to view workspace members.", "Find the member by email address.", "Tap their name to see account details and permissions."]),
-                .ai("Show team members who can access Northstar Dallas.")
+            article("find-team-member", "How to find a user", "Review users and their current status.", "person.crop.circle", "team", "Users", [
+                .manual("Do it manually", ["Open Users to view workspace users.", "Find the user by email address.", "Tap their name to see account details and permissions."]),
+                .ai("Show users who can access Northstar Dallas.")
             ]),
-            article("edit-team-member", "How to edit a team member", "Update a member's email address.", "pencil", "team", "Team", [
-                .manual("Do it manually", ["Open Team and select the member.", "Edit their email address.", "Save the changes." ]),
+            article("edit-team-member", "How to edit a user", "Update a user's email address.", "pencil", "team", "Users", [
+                .manual("Do it manually", ["Open Users and select the user.", "Edit their email address.", "Save the changes." ]),
                 .ai("Update Sarah Patel's email address.")
             ]),
-            article("change-member-status", "How to activate or deactivate a member", "Choose whether someone can sign in.", "person.crop.circle.badge.xmark", "team", "Team", [
-                .manual("Do it manually", ["Open Team and select a member.", "Use the Status switch to activate or deactivate the account.", "Save if prompted."]),
+            article("change-member-status", "How to activate or deactivate a user", "Choose whether someone can sign in.", "person.crop.circle.badge.xmark", "team", "Users", [
+                .manual("Do it manually", ["Open Users and select a user.", "Use the Status switch to activate or deactivate the account.", "Save if prompted."]),
                 .ai("Deactivate Sarah Patel's account."),
-                .faq([("What happens when a member is inactive?", "Inactive users cannot log in to the system."), ("Can I reactivate them?", "Yes. Turn Status back on.")])
+                .faq([("What happens when a user is inactive?", "Inactive users cannot log in to the system."), ("Can I reactivate them?", "Yes. Turn Status back on.")])
             ]),
-            article("assign-member-organization", "How to assign organizations", "Give a member access to one or more organizations.", "building.2", "team", "Team", [
-                .manual("Do it manually", ["Open Team and select the member.", "In Permissions, tap Add org.", "Choose the organization and its locations.", "Set access for each location and save."]),
+            article("assign-member-organization", "How to assign organizations", "Give a user access to one or more organizations.", "building.2", "team", "Users", [
+                .manual("Do it manually", ["Open Users and select the user.", "In Permissions, tap Add org.", "Choose the organization and its locations.", "Set access for each location and save."]),
                 .ai("Give Sarah Patel access to Atlas Distribution in Chicago and Detroit."),
                 .faq([("Can I remove an organization?", "Yes. Use the delete icon beside the organization in Permissions.")])
             ]),
-            article("manage-member-locations", "How to manage location access", "Control which sites a member can access.", "mappin.and.ellipse", "team", "Team", [
-                .manual("Do it manually", ["Open Team and select the member.", "Expand the organization under Permissions.", "Review the assigned locations and update the selection.", "Save the changes."]),
+            article("manage-member-locations", "How to manage location access", "Control which sites a user can access.", "mappin.and.ellipse", "team", "Users", [
+                .manual("Do it manually", ["Open Users and select the user.", "Expand the organization under Permissions.", "Review the assigned locations and update the selection.", "Save the changes."]),
                 .ai("Remove Sarah Patel's access to Northstar Toronto but keep Dallas and Oshawa."),
                 .faq([("Can locations have different permissions?", "Yes. Configure permissions independently for each location.")])
             ]),
-            article("configure-member-permissions", "How to configure permissions", "Choose which features someone can view or manage.", "slider.horizontal.3", "team", "Team", [
-                .manual("Do it manually", ["Open Team and select a member.", "Expand an organization and one of its locations.", "Select a feature and choose No access, View access, or Full access.", "Repeat for other features and save."]),
+            article("configure-member-permissions", "How to configure permissions", "Choose which features someone can view or manage.", "slider.horizontal.3", "team", "Users", [
+                .manual("Do it manually", ["Open Users and select a user.", "Expand an organization and one of its locations.", "Select a feature and choose No access, View access, or Full access.", "Repeat for other features and save."]),
                 .ai("Give Sarah Patel View access to Equipment at Northstar Dallas."),
-                .faq([("What is No access?", "The feature is unavailable to that member."), ("What is View access?", "The member can see the feature but cannot make changes."), ("What is Full access?", "The member can view and manage the feature."), ("What is Custom access?", "The location uses individually configured feature permissions.")])
+                .faq([("What is No access?", "The feature is unavailable to that user."), ("What is View access?", "The user can see the feature but cannot make changes."), ("What is Full access?", "The user can view and manage the feature."), ("What is Custom access?", "The location uses individually configured feature permissions.")])
             ]),
-            article("revoke-member-access", "How to revoke member access", "Restrict a feature or remove an organization.", "lock.shield", "team", "Team", [
-                .manual("Do it manually", ["Open Team and select the member.", "Expand the organization and location under Permissions.", "Choose No access for features that should be restricted, or remove the organization using the delete icon.", "Save the changes."]),
+            article("revoke-member-access", "How to revoke user access", "Restrict a feature or remove an organization.", "lock.shield", "team", "Users", [
+                .manual("Do it manually", ["Open Users and select the user.", "Expand the organization and location under Permissions.", "Choose No access for features that should be restricted, or remove the organization using the delete icon.", "Save the changes."]),
                 .ai("Remove Sarah Patel's access to Atlas Distribution."),
                 .faq([("Do I need to deactivate the user?", "No. You can revoke specific permissions while keeping their account active.")])
             ])

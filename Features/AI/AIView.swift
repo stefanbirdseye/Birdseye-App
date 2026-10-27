@@ -115,25 +115,32 @@ struct AIView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            landingContent
-                .navigationDestination(
-                    isPresented: $isThreadPresented
-                ) {
-                    AIThreadView(
-                        title: $currentConversationTitle,
-                        messages: $messages,
-                        isPresented: $isThreadPresented,
-                        onMessagesChanged: syncCurrentConversation,
-                        onEdit: {
-                            query = $0
-                        },
-                        onNewConversation: startNewConversation
-                    )
-                }
-                .navigationDestination(item: $tutorialDestination) { destination in
-                    tutorialDestinationView(for: destination)
-                }
+        ZStack {
+            NavigationStack {
+                landingContent
+                    .navigationDestination(
+                        isPresented: $isThreadPresented
+                    ) {
+                        AIThreadView(
+                            title: $currentConversationTitle,
+                            messages: $messages,
+                            isPresented: $isThreadPresented,
+                            onMessagesChanged: syncCurrentConversation,
+                            onEdit: {
+                                query = $0
+                            },
+                            onNewConversation: startNewConversation
+                        )
+                    }
+                    .navigationDestination(item: $tutorialDestination) { destination in
+                        tutorialDestinationView(for: destination)
+                    }
+            }
+
+        }
+        .fullScreenCover(item: $selectedTutorial) { tutorial in
+            tutorialOverlay(for: tutorial)
+                .presentationBackground(.clear)
         }
         .onChange(
             of: isThreadPresented
@@ -151,6 +158,38 @@ struct AIView: View {
             restoredTutorial = nil
         }
     }
+    private func tutorialOverlay(for tutorial: AITutorial) -> some View {
+        ZStack {
+            Color.black.opacity(0.18)
+                .ignoresSafeArea()
+
+            GeometryReader { proxy in
+                let cardWidth = min(proxy.size.width - 32, 480)
+                let cardHeight = min(proxy.size.height - 100, 760)
+
+                AITutorialStoryExperience(
+                    tutorial: tutorial,
+                    isComplete: completionBinding(for: tutorial),
+                    onDismiss: {
+                        selectedTutorial = nil
+                    },
+                    onTryItYourself: {
+                        openTutorialDestination(tutorial)
+                    },
+                    onNextTutorial: {
+                        selectedTutorial = nil
+                    },
+                    isCardPresentation: true
+                )
+                .id(tutorial.id)
+                .frame(width: cardWidth, height: cardHeight)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .ignoresSafeArea()
+        .zIndex(10_000)
+    }
+
     private var landingContent: some View {
         ScrollView {
             VStack(
@@ -185,30 +224,6 @@ struct AIView: View {
         )
         .birdseyeMainTabPage()
         .toolbarBackground(.visible, for: .navigationBar)
-        .fullScreenCover(item: $selectedTutorial) { tutorial in
-            AITutorialStoryExperience(
-                tutorial: tutorial,
-                isComplete: completionBinding(for: tutorial),
-                onDismiss: {
-                    selectedTutorial = nil
-                },
-                onTryItYourself: {
-                    openTutorialDestination(tutorial)
-                },
-                onNextTutorial: {
-                    guard let index = AITutorial.allCases.firstIndex(of: tutorial) else {
-                        selectedTutorial = nil
-                        return
-                    }
-
-                    let nextIndex = AITutorial.allCases.index(after: index)
-                    selectedTutorial = AITutorial.allCases.indices.contains(nextIndex)
-                        ? AITutorial.allCases[nextIndex]
-                        : nil
-                }
-            )
-            .id(tutorial.id)
-        }
         .confirmationDialog(
             "Close onboarding?",
             isPresented: $isCloseOnboardingConfirmationPresented,
@@ -320,7 +335,7 @@ struct AIView: View {
                 }
 
                 if isStartHereExpanded {
-                    HStack(spacing: 0) {
+                    HStack(alignment: .top, spacing: 0) {
                         ForEach(AITutorial.allCases) { tutorial in
                             AITutorialStoryCircle(
                                 tutorial: tutorial,
@@ -397,7 +412,7 @@ struct AIView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Invite your team")
+                    Text("Invite users")
                         .font(.title3.weight(.bold))
 
                     Text("Manage access, view activity, and submit requests together in Birdseye.")
@@ -445,7 +460,7 @@ struct AIView: View {
                         .background(Color.accentColor, in: Circle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Invite team member")
+                .accessibilityLabel("Invite user")
             }
             .padding(.leading, 16)
             .padding(.trailing, 8)
@@ -522,7 +537,7 @@ struct AIView: View {
 
         switch cardID {
         case "inviteTeam":
-            title = "Invite your team"
+            title = "Invite users"
         case "sendRequest":
             title = "Send us a request"
         default:
@@ -856,7 +871,7 @@ struct InviteTeamActionCard: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Invite your team")
+                    Text("Invite users")
                         .font(.title3.weight(.bold))
                         .foregroundStyle(.primary)
 
@@ -905,7 +920,7 @@ struct InviteTeamActionCard: View {
                             .background(Color.accentColor, in: Circle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Invite team member")
+                .accessibilityLabel("Invite user")
             }
             .padding(.leading, 16)
             .padding(.trailing, 8)
@@ -941,7 +956,7 @@ enum AITutorial: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .authorizeDriver: "Authorize a regular driver"
-        case .inviteTeam: "Invite your team members"
+        case .inviteTeam: "Invite users"
         case .askAI: "Ask AI to do anything"
         }
     }
@@ -975,8 +990,8 @@ enum AITutorial: String, CaseIterable, Identifiable {
             ]
         case .inviteTeam:
             [
-                AITutorialStep(title: "Open Team", detail: "Go to the Team page."),
-                AITutorialStep(title: "Invite a member", detail: "Select Invite member."),
+                AITutorialStep(title: "Open Users", detail: "Go to the Users page."),
+                AITutorialStep(title: "Invite a user", detail: "Select Invite user."),
                 AITutorialStep(title: "Choose a role", detail: "Send their invitation.")
             ]
         case .askAI:
@@ -1021,7 +1036,7 @@ enum AITutorial: String, CaseIterable, Identifiable {
         case .authorizeDriver:
             "Add a driver to the list of people authorized to enter your locations."
         case .inviteTeam:
-            "Bring the people who run your operation into Birdseye. Invite teammates so they can manage people, view yard activity, and keep daily work moving."
+            "Bring the people who run your operation into Birdseye. Invite users so they can manage people, view yard activity, and keep daily work moving."
         case .askAI:
             "Tell Birdseye AI what you need in plain language. It can help you find records, review activity, and start common tasks without digging through screens."
         }
@@ -1029,8 +1044,8 @@ enum AITutorial: String, CaseIterable, Identifiable {
 
     var completionTitle: String {
         switch self {
-        case .authorizeDriver: "Add a regular driver"
-        case .inviteTeam: "Invite a team member"
+        case .authorizeDriver: "Ready to give it a try?"
+        case .inviteTeam: "Invite a user"
         case .askAI: "Ask Birdseye AI"
         }
     }
@@ -1038,9 +1053,9 @@ enum AITutorial: String, CaseIterable, Identifiable {
     var completionDetail: String {
         switch self {
         case .authorizeDriver:
-            "Try adding a regular driver, like John Smith, to your authorized list so they can always enter."
+            "You now know how to authorize a driver. You can revisit this tutorial anytime in Help."
         case .inviteTeam:
-            "Try inviting a teammate so you can manage access and work together in Birdseye."
+            "Try inviting a user so you can manage access and work together in Birdseye."
         case .askAI:
             "Try asking Birdseye AI a question in your own words to find what you need."
         }
@@ -1048,8 +1063,8 @@ enum AITutorial: String, CaseIterable, Identifiable {
 
     var completionActionTitle: String {
         switch self {
-        case .authorizeDriver: "Add a regular driver"
-        case .inviteTeam: "Invite a team member"
+        case .authorizeDriver: "Try it now"
+        case .inviteTeam: "Invite a user"
         case .askAI: "Ask Birdseye AI"
         }
     }
@@ -1115,12 +1130,41 @@ private struct AITutorialStoryCircle: View {
     }
 }
 
-private struct AITutorialStoryExperience: View {
+struct AITutorialStoryExperience: View {
     let tutorial: AITutorial
     @Binding var isComplete: Bool
     let onDismiss: () -> Void
     let onTryItYourself: () -> Void
     let onNextTutorial: () -> Void
+    let completionTitle: String?
+    let completionDetail: String?
+    let completionActionTitle: String?
+    let showsNextTutorialButton: Bool
+    let isCardPresentation: Bool
+
+    init(
+        tutorial: AITutorial,
+        isComplete: Binding<Bool>,
+        onDismiss: @escaping () -> Void,
+        onTryItYourself: @escaping () -> Void,
+        onNextTutorial: @escaping () -> Void,
+        completionTitle: String? = nil,
+        completionDetail: String? = nil,
+        completionActionTitle: String? = nil,
+        showsNextTutorialButton: Bool = true,
+        isCardPresentation: Bool = false
+    ) {
+        self.tutorial = tutorial
+        _isComplete = isComplete
+        self.onDismiss = onDismiss
+        self.onTryItYourself = onTryItYourself
+        self.onNextTutorial = onNextTutorial
+        self.completionTitle = completionTitle
+        self.completionDetail = completionDetail
+        self.completionActionTitle = completionActionTitle
+        self.showsNextTutorialButton = showsNextTutorialButton
+        self.isCardPresentation = isCardPresentation
+    }
 
     @State private var selectedStep = 0
     @State private var activeVideoProgress = 0.0
@@ -1137,7 +1181,7 @@ private struct AITutorialStoryExperience: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            .ignoresSafeArea()
+            .ignoresSafeArea(edges: isCardPresentation ? [] : .all)
 
             VStack(spacing: 0) {
                 HStack(spacing: 5) {
@@ -1210,6 +1254,10 @@ private struct AITutorialStoryExperience: View {
 
                     AITutorialStoryCompletionSlide(
                         tutorial: tutorial,
+                        completionTitle: completionTitle,
+                        completionDetail: completionDetail,
+                        completionActionTitle: completionActionTitle,
+                        showsNextTutorialButton: showsNextTutorialButton,
                         onTryItYourself: {
                             isComplete = true
                             onTryItYourself()
@@ -1218,9 +1266,6 @@ private struct AITutorialStoryExperience: View {
                         onPrevious: moveToPreviousStep
                     )
                     .tag(tutorial.steps.count)
-                    .onAppear {
-                        isComplete = true
-                    }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .overlay {
@@ -1248,7 +1293,7 @@ private struct AITutorialStoryExperience: View {
             )
             .frame(width: 112)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .ignoresSafeArea()
+            .ignoresSafeArea(edges: isCardPresentation ? [] : .all)
             .allowsHitTesting(false)
 
             LinearGradient(
@@ -1258,9 +1303,24 @@ private struct AITutorialStoryExperience: View {
             )
             .frame(width: 112)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
-            .ignoresSafeArea()
+            .ignoresSafeArea(edges: isCardPresentation ? [] : .all)
             .allowsHitTesting(false)
         }
+        .frame(
+            maxWidth: isCardPresentation ? 520 : .infinity,
+            maxHeight: isCardPresentation ? 760 : .infinity
+        )
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: isCardPresentation ? 28 : 0,
+                style: .continuous
+            )
+        )
+        .shadow(
+            color: .black.opacity(isCardPresentation ? 0.28 : 0),
+            radius: isCardPresentation ? 24 : 0,
+            y: isCardPresentation ? 12 : 0
+        )
         .interactiveDismissDisabled()
         .onAppear {
             addProgressObserver()
@@ -1408,6 +1468,10 @@ private struct AITutorialStoryExperience: View {
 
 private struct AITutorialStoryCompletionSlide: View {
     let tutorial: AITutorial
+    let completionTitle: String?
+    let completionDetail: String?
+    let completionActionTitle: String?
+    let showsNextTutorialButton: Bool
     let onTryItYourself: () -> Void
     let onNextTutorial: () -> Void
     let onPrevious: () -> Void
@@ -1430,19 +1494,19 @@ private struct AITutorialStoryCompletionSlide: View {
                         .foregroundStyle(.green)
 
                     VStack(spacing: 12) {
-                        Text(tutorial.completionTitle)
+                        Text(completionTitle ?? tutorial.completionTitle)
                             .font(.largeTitle.weight(.bold))
                             .multilineTextAlignment(.center)
                             .frame(maxWidth: .infinity, alignment: .center)
 
-                        Text(tutorial.completionDetail)
+                        Text(completionDetail ?? tutorial.completionDetail)
                             .font(.title3)
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.white.opacity(0.82))
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
 
-                    Button("Try it now", action: onTryItYourself)
+                    Button(completionActionTitle ?? "Try it now", action: onTryItYourself)
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
                         .tint(.white)
@@ -1452,10 +1516,12 @@ private struct AITutorialStoryCompletionSlide: View {
 
                 Spacer(minLength: 24)
 
-                Button("Start next tutorial", action: onNextTutorial)
-                    .buttonStyle(.bordered)
-                    .tint(.white)
-                    .padding(.bottom, 28)
+                if showsNextTutorialButton {
+                    Button("Close", action: onNextTutorial)
+                        .buttonStyle(.bordered)
+                        .tint(.white)
+                        .padding(.bottom, 28)
+                }
             }
             .padding(.horizontal, 32)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -1643,7 +1709,7 @@ private struct AITutorialStepPage: View {
     private var destinationTitle: String {
         switch tutorial {
         case .authorizeDriver: "Open People"
-        case .inviteTeam: "Open Team"
+        case .inviteTeam: "Open Users"
         case .askAI: "Open Birdseye AI"
         }
     }
